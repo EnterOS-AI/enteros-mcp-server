@@ -1,14 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult, toMcpText } from "../api.js";
+import { apiCall, platformGet, toMcpResult, toMcpText } from "../api.js";
 
 export async function handleListChannelAdapters() {
-  const data = await apiCall("GET", `/channels/adapters`);
+  const data = await platformGet(`/channels/adapters`);
   return toMcpResult(data);
 }
 
 export async function handleListChannels(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/channels`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/channels`);
   return toMcpResult(data);
 }
 

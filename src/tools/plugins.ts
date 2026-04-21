@@ -1,14 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleListPluginRegistry() {
-  const data = await apiCall("GET", "/plugins");
+  const data = await platformGet("/plugins");
   return toMcpResult(data);
 }
 
 export async function handleListInstalledPlugins(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/plugins`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/plugins`);
   return toMcpResult(data);
 }
 
@@ -25,12 +25,12 @@ export async function handleUninstallPlugin(params: { workspace_id: string; name
 }
 
 export async function handleListPluginSources() {
-  const data = await apiCall("GET", "/plugins/sources");
+  const data = await platformGet("/plugins/sources");
   return toMcpResult(data);
 }
 
 export async function handleListAvailablePlugins(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/plugins/available`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/plugins/available`);
   return toMcpResult(data);
 }
 
@@ -39,9 +39,7 @@ export async function handleCheckPluginCompatibility(params: {
   runtime: string;
 }) {
   const { workspace_id, runtime } = params;
-  const data = await apiCall(
-    "GET",
-    `/workspaces/${workspace_id}/plugins/compatibility?runtime=${encodeURIComponent(runtime)}`,
+  const data = await platformGet(`/workspaces/${workspace_id}/plugins/compatibility?runtime=${encodeURIComponent(runtime)}`,
   );
   return toMcpResult(data);
 }

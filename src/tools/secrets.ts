@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleSetSecret(params: { workspace_id: string; key: string; value: string }) {
   const { workspace_id, key, value } = params;
@@ -9,7 +9,7 @@ export async function handleSetSecret(params: { workspace_id: string; key: strin
 }
 
 export async function handleListSecrets(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/secrets`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/secrets`);
   return toMcpResult(data);
 }
 
@@ -20,7 +20,7 @@ export async function handleDeleteSecret(params: { workspace_id: string; key: st
 }
 
 export async function handleListGlobalSecrets() {
-  const data = await apiCall("GET", "/settings/secrets");
+  const data = await platformGet("/settings/secrets");
   return toMcpResult(data);
 }
 

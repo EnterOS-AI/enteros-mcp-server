@@ -1,15 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult, toMcpText } from "../api.js";
+import { apiCall, platformGet, toMcpResult, toMcpText } from "../api.js";
 
 export async function handleListFiles(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/files`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/files`);
   return toMcpResult(data);
 }
 
 export async function handleReadFile(params: { workspace_id: string; path: string }) {
   const { workspace_id, path } = params;
-  const data = await apiCall<{ content?: string }>("GET", `/workspaces/${workspace_id}/files/${path}`);
+  const data = await platformGet<{ content?: string }>(`/workspaces/${workspace_id}/files/${path}`);
   const fileText = (data as { content?: string } | null)?.content;
   return fileText ? toMcpText(fileText) : toMcpResult(data);
 }
@@ -36,7 +36,7 @@ export async function handleReplaceAllFiles(params: {
 }
 
 export async function handleGetConfig(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/config`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/config`);
   return toMcpResult(data);
 }
 

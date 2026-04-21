@@ -64,3 +64,72 @@ export async function apiCall<T = unknown>(
     return { error: `Platform unreachable at ${PLATFORM_URL}`, detail: msg };
   }
 }
+
+/**
+ * GET helper with automatic retry on 429 (Too Many Requests).
+ *
+ * Retries up to `maxRetries` times, honouring the `Retry-After` header when
+ * present (seconds, rounded up to ms). When absent uses exponential backoff
+ * with ±25% jitter, starting at 1 s and doubling each attempt.
+ *
+ * After exhausting retries returns `{ error: "RATE_LIMITED", detail: … }`
+ * so callers can surface a structured `RATE_LIMITED` MCP error code.
+ *
+ * Only use for idempotent GET calls. For POST/DELETE, stick with `apiCall`.
+ */
+export async function platformGet<T = unknown>(
+  path: string,
+  maxRetries = 3,
+): Promise<T | ApiError> {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const res = await fetch(`${PLATFORM_URL}${path}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (res.status === 429 && attempt < maxRetries) {
+        attempt++;
+        const retryAfter = res.headers.get("Retry-After");
+        let delayMs: number;
+
+        if (retryAfter !== null) {
+          // Retry-After is in seconds (integer or float).
+          delayMs = Math.ceil(parseFloat(retryAfter) * 1000);
+        } else {
+          // Exponential back-off with ±25% jitter.
+          const base = 1_000 * 2 ** (attempt - 1); // 1 s, 2 s, 4 s …
+          const jitter = base * 0.25 * (Math.random() * 2 - 1); // ±25%
+          delayMs = Math.round(base + jitter);
+        }
+
+        // Cap at 30 s to avoid very long waits consuming a handler slot.
+        delayMs = Math.min(delayMs, 30_000);
+        await sleep(delayMs);
+        continue;
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        return { error: `HTTP ${res.status}`, detail: text };
+      }
+
+      const text = await res.text();
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        return { raw: text, status: res.status } as ApiError;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`Molecule AI API error (GET ${path}): ${msg}`);
+      return { error: `Platform unreachable at ${PLATFORM_URL}`, detail: msg };
+    }
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

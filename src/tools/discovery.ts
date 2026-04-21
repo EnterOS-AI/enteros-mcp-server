@@ -1,14 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleListPeers(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/registry/${params.workspace_id}/peers`);
+  const data = await platformGet(`/registry/${params.workspace_id}/peers`);
   return toMcpResult(data);
 }
 
 export async function handleDiscoverWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/registry/discover/${params.workspace_id}`);
+  const data = await platformGet(`/registry/discover/${params.workspace_id}`);
   return toMcpResult(data);
 }
 
@@ -20,17 +20,17 @@ export async function handleCheckAccess(params: { caller_id: string; target_id: 
 
 export async function handleListEvents(params: { workspace_id?: string }) {
   const path = params.workspace_id ? `/events/${params.workspace_id}` : "/events";
-  const data = await apiCall("GET", path);
+  const data = await platformGet(path);
   return toMcpResult(data);
 }
 
 export async function handleListTemplates() {
-  const data = await apiCall("GET", "/templates");
+  const data = await platformGet("/templates");
   return toMcpResult(data);
 }
 
 export async function handleListOrgTemplates() {
-  const data = await apiCall("GET", "/org/templates");
+  const data = await platformGet("/org/templates");
   return toMcpResult(data);
 }
 
@@ -46,7 +46,7 @@ export async function handleImportTemplate(params: { name: string; files: Record
 }
 
 export async function handleExportBundle(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/bundles/export/${params.workspace_id}`);
+  const data = await platformGet(`/bundles/export/${params.workspace_id}`);
   return toMcpResult(data);
 }
 
@@ -56,7 +56,7 @@ export async function handleImportBundle(params: { bundle: Record<string, unknow
 }
 
 export async function handleGetViewport() {
-  const data = await apiCall("GET", "/canvas/viewport");
+  const data = await platformGet("/canvas/viewport");
   return toMcpResult(data);
 }
 

@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleListWorkspaces() {
-  const data = await apiCall("GET", "/workspaces");
+  const data = await platformGet("/workspaces");
   return toMcpResult(data);
 }
 
@@ -33,7 +33,7 @@ export async function handleCreateWorkspace(params: {
 }
 
 export async function handleGetWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}`);
   return toMcpResult(data);
 }
 

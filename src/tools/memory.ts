@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleCommitMemory(params: {
   workspace_id: string;
@@ -21,7 +21,7 @@ export async function handleSearchMemory(params: {
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
   if (scope) urlParams.set("scope", scope);
-  const data = await apiCall("GET", `/workspaces/${workspace_id}/memories?${urlParams}`);
+  const data = await platformGet(`/workspaces/${workspace_id}/memories?${urlParams}`);
   return toMcpResult(data);
 }
 
@@ -41,12 +41,12 @@ export async function handleSessionSearch(params: {
   if (q) qs.set("q", q);
   if (limit) qs.set("limit", String(limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const data = await apiCall("GET", `/workspaces/${workspace_id}/session-search${suffix}`);
+  const data = await platformGet(`/workspaces/${workspace_id}/session-search${suffix}`);
   return toMcpResult(data);
 }
 
 export async function handleGetSharedContext(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/shared-context`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/shared-context`);
   return toMcpResult(data);
 }
 
@@ -62,15 +62,13 @@ export async function handleSetKV(params: {
 }
 
 export async function handleGetKV(params: { workspace_id: string; key: string }) {
-  const data = await apiCall(
-    "GET",
-    `/workspaces/${params.workspace_id}/memory/${encodeURIComponent(params.key)}`,
+  const data = await platformGet(`/workspaces/${params.workspace_id}/memory/${encodeURIComponent(params.key)}`,
   );
   return toMcpResult(data);
 }
 
 export async function handleListKV(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/memory`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/memory`);
   return toMcpResult(data);
 }
 

@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleListPendingApprovals() {
-  const data = await apiCall("GET", "/approvals/pending");
+  const data = await platformGet("/approvals/pending");
   return toMcpResult(data);
 }
 
@@ -32,7 +32,7 @@ export async function handleCreateApproval(params: {
 }
 
 export async function handleGetWorkspaceApprovals(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/approvals`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/approvals`);
   return toMcpResult(data);
 }
 

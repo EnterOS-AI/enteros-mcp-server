@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult } from "../api.js";
+import { apiCall, platformGet, toMcpResult } from "../api.js";
 
 export async function handleAsyncDelegate(params: {
   workspace_id: string;
@@ -13,7 +13,7 @@ export async function handleAsyncDelegate(params: {
 }
 
 export async function handleCheckDelegations(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/delegations`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/delegations`);
   return toMcpResult(data);
 }
 
@@ -70,7 +70,7 @@ export async function handleListActivity(params: {
   if (type) urlParams.set("type", type);
   if (limit) urlParams.set("limit", String(limit));
   const qs = urlParams.toString() ? `?${urlParams.toString()}` : "";
-  const data = await apiCall("GET", `/workspaces/${workspace_id}/activity${qs}`);
+  const data = await platformGet(`/workspaces/${workspace_id}/activity${qs}`);
   return toMcpResult(data);
 }
 
@@ -85,7 +85,7 @@ export async function handleNotifyUser(params: {
 }
 
 export async function handleListTraces(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/traces`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/traces`);
   return toMcpResult(data);
 }
 

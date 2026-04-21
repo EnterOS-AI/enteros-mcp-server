@@ -69,99 +69,40 @@ Attach a cleanup function to the SSE stream `close` event. Invalidate the heartb
 timer when the stream ends so no further calls are made. Document the expected
 SSE session lifecycle in the streaming convention section of CLAUDE.md.
 
-**File:** `src/index.ts` (and likely all tool handlers)  
-**Status:** Identified  
-**Severity:** Medium
-
-### Symptom
-Tool handlers use `console.log` and `console.error` for output. Structured JSON
-logs (for ingestion into Datadog, Grafana, or the platform's Langfuse traces)
-are not emitted. MCP `INTERNAL_ERROR` responses include human-readable text
-but no correlation ID or structured metadata.
-
-### Impact
-Debugging production issues requires reading raw console output. Correlation IDs
-from the platform request context are not attached to errors, making it hard to
-trace a failing tool call back to a specific workspace or delegation in the
-platform logs.
-
-### Suggested fix
-Replace `console.log/error` with a structured logger (e.g. `pino` or
-`winston` with JSON format). Attach `requestId` / `workspaceId` from the MCP
-request context to every log entry. Ensure errors include a correlation ID
-from the platform trace header (`X-Trace-ID` or similar).
-
 ---
 
 ## KI-002 — Tool input schemas are not validated before passing to handlers
 
 **File:** `src/tools/*.ts` (tool handlers)  
-**Status:** Identified  
+**Status:** Resolved  
 **Severity:** High
 
-### Symptom
-Tool handlers receive raw JSON arguments from the MCP client and pass them
-directly to business logic without schema validation. If a client sends a
-malformed or unexpected argument shape, the handler throws a TypeError or
-returns a cryptic 500 before any error handling can run.
-
-### Impact
-Malformed tool calls from a client result in a generic `INTERNAL_ERROR` rather
-than `INVALID_ARGUMENTS` (HTTP 400 equivalent). Clients cannot distinguish
-between "you sent bad arguments" and "the server crashed" programmatically.
-
-### Suggested fix
-Add a Zod schema (already listed as a project dependency in `package.json`)
-for every tool's `inputSchema`. Validate arguments at the top of each handler
-and return `INVALID_ARGUMENTS` with a detailed list of validation failures
-before calling any business logic. This also serves as living documentation
-for what each tool accepts.
-
----
-
-## KI-003 — `test.txt` artifact left in repo root
-
-**File:** `test.txt` (root)  
-**Status:** Unresolved — must be removed  
-**Severity:** Low
-
-### Symptom
-A 5-byte file named `test.txt` with content `"test"` exists in the repo root.
-This is not a legitimate file (no reference in `.gitignore` or build tooling)
-and appears to be a leftover debug artifact.
-
-### Impact
-Clutter. Could be accidentally included in the npm package if `files` in
-`package.json` is ever set to include all non-ignored files.
-
-### Suggested fix
-Remove it: `rm test.txt && git add test.txt && git commit -m "chore: remove test artifact"`.
+### Resolution
+The `@modelcontextprotocol/sdk` server framework already calls
+`validateToolInput(tool, args, toolName)` before dispatching to any handler.
+It uses `zod.safeParseAsync()` against the tool's `inputSchema` (a Zod object
+or raw shape) and returns `INVALID_ARGUMENTS` on parse failure — no handler
+code change needed. Each tool's `srv.tool(..., inputSchema)` already satisfies
+this requirement.
 
 ---
 
 ## KI-004 — No rate limiting or backpressure on platform API calls
 
-**File:** `src/tools/` (all tool implementations)  
-**Status:** Identified  
+**File:** `src/api.ts`, `src/tools/*.ts`  
+**Status:** Resolved (PR: `feat/mcp-rate-limiting`)  
 **Severity:** Medium
 
-### Symptom
-Tool handlers make direct HTTP calls to the platform API without any
-client-side rate limiting or retry backoff. If the platform returns 429
-(Too Many Requests), the handler surfaces a `PLATFORM_ERROR` immediately
-without retrying or honouring any `Retry-After` header.
-
-### Impact
-A burst of tool calls from a single MCP client can exceed platform rate limits
-and produce cascading failures. The `RATE_LIMITED` error code is defined in
-the conventions but never returned.
-
-### Suggested fix
-Add a shared `PlatformClient` (or extend the SDK client) with built-in
-rate-limit handling: respect `Retry-After`, implement exponential backoff
-with jitter (max 3 retries), and return `RATE_LIMITED` only after
-exhausting retries. Share the client instance across handlers to enable
-per-client rate limiting.
+### Resolution
+Added `platformGet()` in `src/api.ts` — a GET helper with automatic retry
+on 429 (Too Many Requests). It respects the `Retry-After` header (seconds,
+rounded up to ms); when absent it uses exponential backoff with ±25% jitter
+(starting at 1 s, doubling each attempt, capped at 30 s). After 3 retries
+it returns `{ error: "RATE_LIMITED", detail: … }` so callers get a
+structured `RATE_LIMITED` MCP error code. All 37 GET calls across the 12
+tool modules now use `platformGet()` instead of `apiCall("GET", …)`. POST,
+PUT, PATCH, DELETE calls continue to use `apiCall` (non-idempotent).
+`platformGet` is also re-exported from `src/index.ts` for SDK consumers.
 
 ---
 

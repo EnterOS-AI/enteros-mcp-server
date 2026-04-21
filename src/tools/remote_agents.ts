@@ -1,13 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, PLATFORM_URL, toMcpResult, isApiError } from "../api.js";
+import { apiCall, isApiError, platformGet, PLATFORM_URL, toMcpResult } from "../api.js";
 
 // Fetch the workspace list, filter to runtime='external'. The platform
 // has no dedicated /remote-agents endpoint — we filter client-side
 // because the workspace list is small (tens to low-hundreds, never
 // pagination scale) and adding a server endpoint would be a separate PR.
 export async function handleListRemoteAgents() {
-  const data = await apiCall("GET", "/workspaces");
+  const data = await platformGet("/workspaces");
   if (!Array.isArray(data)) {
     return toMcpResult(data);
   }
@@ -30,7 +30,7 @@ export async function handleListRemoteAgents() {
 // /workspaces/:id endpoint and project the same shape. Still useful as
 // a focused tool that doesn't dump the full workspace blob.
 export async function handleGetRemoteAgentState(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}`);
   if (isApiError(data)) {
     return toMcpResult(data);
   }
@@ -53,7 +53,7 @@ export async function handleGetRemoteAgentSetupCommand(params: {
   // Verify the workspace exists and is runtime='external' before generating
   // the command — saves the operator from pasting a bash line that will
   // fail because the workspace was a Docker workspace they typed by mistake.
-  const ws = await apiCall("GET", `/workspaces/${params.workspace_id}`);
+  const ws = await platformGet(`/workspaces/${params.workspace_id}`);
   if (isApiError(ws)) {
     return toMcpResult(ws);
   }
@@ -112,7 +112,7 @@ export async function handleCheckRemoteAgentFreshness(params: {
   workspace_id: string;
   threshold_seconds?: number;
 }) {
-  const ws = await apiCall("GET", `/workspaces/${params.workspace_id}`);
+  const ws = await platformGet(`/workspaces/${params.workspace_id}`);
   if (isApiError(ws)) {
     return toMcpResult(ws);
   }

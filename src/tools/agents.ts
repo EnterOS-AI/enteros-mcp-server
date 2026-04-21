@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, toMcpResult, toMcpText } from "../api.js";
+import { apiCall, isApiError, platformGet, PLATFORM_URL, toMcpResult, toMcpText } from "../api.js";
 
 export async function handleChatWithAgent(params: { workspace_id: string; message: string }) {
   const { workspace_id, message } = params;
@@ -46,7 +46,7 @@ export async function handleMoveAgent(params: { workspace_id: string; target_wor
 }
 
 export async function handleGetModel(params: { workspace_id: string }) {
-  const data = await apiCall("GET", `/workspaces/${params.workspace_id}/model`);
+  const data = await platformGet(`/workspaces/${params.workspace_id}/model`);
   return toMcpResult(data);
 }
 

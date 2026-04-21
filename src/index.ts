@@ -30,7 +30,7 @@ import { registerRemoteAgentTools } from "./tools/remote_agents.js";
 // Explicit names (not `export *`) so tree-shakers and TS readers can see
 // exactly which handlers are part of the public surface, and a missing
 // export triggers a compile error instead of a silent undefined at import.
-export { PLATFORM_URL, apiCall, isApiError, toMcpResult, toMcpText } from "./api.js";
+export { PLATFORM_URL, apiCall, isApiError, platformGet, toMcpResult, toMcpText } from "./api.js";
 export type { ApiError } from "./api.js";
 
 export {
