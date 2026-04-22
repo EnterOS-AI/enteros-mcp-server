@@ -12,6 +12,8 @@ export const PLATFORM_URL =
  * Shape returned by apiCall when the request fails (network error, non-2xx,
  * or non-JSON body with no error). Returned-by-value — apiCall never throws.
  */
+import { error as logError } from "./utils/logger.js";
+
 export type ApiError = { error: string; detail?: string; raw?: string; status?: number };
 
 export function isApiError(v: unknown): v is ApiError {
@@ -59,8 +61,7 @@ export async function apiCall<T = unknown>(
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // stdio MCP servers must log to stderr; stdout is the protocol channel.
-    console.error(`Molecule AI API error (${method} ${path}): ${msg}`);
+    logError(err, `Molecule AI API error (${method} ${path})`, { platformUrl: PLATFORM_URL });
     return { error: `Platform unreachable at ${PLATFORM_URL}`, detail: msg };
   }
 }
@@ -129,7 +130,7 @@ export async function platformGet<T = unknown>(
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Molecule AI API error (GET ${path}): ${msg}`);
+      logError(err, `Molecule AI API error (GET ${path})`, { platformUrl: PLATFORM_URL });
       return { error: `Platform unreachable at ${PLATFORM_URL}`, detail: msg };
     }
   }

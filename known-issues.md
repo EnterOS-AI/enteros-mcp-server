@@ -27,27 +27,38 @@ Format per entry:
 
 ## KI-001 — No structured logging; all errors go to console.log
 
-**File:** `src/index.ts` (and likely all tool handlers)
-**Status:** Identified
+**File:** `src/index.ts`, `src/api.ts` (and potentially all tool handlers)
+**Status:** ✅ Resolved
 **Severity:** Medium
 
-### Symptom
-Tool handlers use `console.log` and `console.error` for output. Structured JSON
-logs (for ingestion into Datadog, Grafana, or the platform's Langfuse traces)
-are not emitted. MCP `INTERNAL_ERROR` responses include human-readable text
-but no correlation ID or structured metadata.
+### Resolution
+Replaced all `console.log/error` calls with structured JSON logging via
+[pino](https://getpino.io) (`src/utils/logger.ts`). The logger:
 
-### Impact
-Debugging production issues requires reading raw console output. Correlation IDs
-from the platform request context are not attached to errors, making it hard to
-trace a failing tool call back to a specific workspace or delegation in the
-platform logs.
+- Emits JSON by default (production); pretty-prints when `NODE_ENV != "production"`
+  or stdout is a TTY.
+- Level is controlled by `LOG_LEVEL` env var (default: `30` = warn; set `20` for debug).
+- Uses Node.js `AsyncLocalStorage` (`src/utils/context.ts`) to propagate
+  per-call context (`toolName`, `requestId`, `workspaceId`) into all downstream
+  log entries automatically — no need to thread context through every function.
+- Errors include `{ message, stack, name }` in the `err` field.
 
-### Suggested fix
-Replace `console.log/error` with a structured logger (e.g. `pino` or
-`winston` with JSON format). Attach `requestId` / `workspaceId` from the MCP
-request context to every log entry. Ensure errors include a correlation ID
-from the platform trace header (`X-Trace-ID` or similar).
+Files changed:
+- `package.json` — added `pino@^9.6.0`, `pino-pretty@^13.0.0`
+- `src/utils/context.ts` — new; `AsyncLocalStorage` context + `getContext()`, `withContext()`
+- `src/utils/logger.ts` — new; `info()`, `warn()`, `error()`, `debug()` helpers
+- `src/api.ts` — both `console.error` → `logError(…)`
+- `src/index.ts` — all `console.error` → `logInfo()`/`logWarn()`/`logError()`
+
+### What was NOT changed (follow-up)
+Tool handlers that want to emit application-level log events (e.g. "installed
+plugin X", "delegated to workspace Y") should import and call `info()`/`warn()`
+directly. The `AsyncLocalStorage` context is already active during handler
+execution so those calls automatically carry `toolName` etc.
+
+Correlation IDs from a platform trace header (`X-Trace-ID`) are not yet wired up —
+the MCP SDK does not expose request headers to handlers. A follow-up will be needed
+once the SDK supports header access or we adopt a middleware approach.
 
 ---
 

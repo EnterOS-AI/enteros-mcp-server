@@ -13,6 +13,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { PLATFORM_URL, apiCall } from "./api.js";
+import { info as logInfo, warn as logWarn, error as logError } from "./utils/logger.js";
 import { registerWorkspaceTools } from "./tools/workspaces.js";
 import { registerAgentTools } from "./tools/agents.js";
 import { registerSecretTools } from "./tools/secrets.js";
@@ -195,22 +196,27 @@ async function main() {
   try {
     const res = await fetch(`${PLATFORM_URL}/health`);
     if (res.ok) {
-      console.error(`Molecule AI platform connected: ${PLATFORM_URL}`);
+      logInfo("Molecule AI platform connected", { platformUrl: PLATFORM_URL });
     } else {
-      console.error(`WARNING: Molecule AI platform at ${PLATFORM_URL} returned ${res.status}. Tools may fail.`);
+      logWarn(`Molecule AI platform at ${PLATFORM_URL} returned ${res.status}. Tools may fail.`, {
+        platformUrl: PLATFORM_URL,
+        status: res.status,
+      });
     }
-  } catch {
-    console.error(`WARNING: Cannot reach Molecule AI platform at ${PLATFORM_URL}. Start it with: cd platform && go run ./cmd/server`);
+  } catch (err) {
+    logWarn(`Cannot reach Molecule AI platform at ${PLATFORM_URL}. Start it with: cd platform && go run ./cmd/server`, {
+      platformUrl: PLATFORM_URL,
+    });
   }
 
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Molecule AI MCP server running on stdio (87 tools available)");
+  logInfo("Molecule AI MCP server running on stdio (87 tools available)", { transport: "stdio", toolCount: 87 });
 }
 
 // Only auto-start when run directly (not when imported for testing).
 // JEST_WORKER_ID is set automatically by Jest in every worker process.
 if (!process.env.JEST_WORKER_ID) {
-  main().catch(console.error);
+  main().catch((err) => logError(err, "MCP server main() threw unexpectedly"));
 }
