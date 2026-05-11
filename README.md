@@ -2,42 +2,24 @@
 
 MCP server that exposes Molecule AI platform operations as tools for AI coding agents.
 
-## 20 Tools Available
+## 87 Tools Available
 
-| Tool | Description |
-|------|-------------|
-| `list_workspaces` | List all workspaces with status and skills |
-| `create_workspace` | Create a new workspace (with optional template) |
-| `get_workspace` | Get workspace details |
-| `delete_workspace` | Delete workspace (cascades to children) |
-| `restart_workspace` | Restart offline/failed workspace |
-| `chat_with_agent` | Send message and get AI response |
-| `assign_agent` | Assign model to workspace |
-| `set_secret` | Set API key or env var |
-| `list_secrets` | List secret keys (no values) |
-| `list_files` | List workspace config files |
-| `read_file` | Read a config file |
-| `write_file` | Create or update a file |
-| `delete_file` | Delete file or folder |
-| `commit_memory` | Store fact (LOCAL/TEAM/GLOBAL) |
-| `search_memory` | Search workspace memories |
-| `list_templates` | List available templates |
-| `expand_team` | Expand workspace to team |
-| `collapse_team` | Collapse team to single workspace |
-| `list_pending_approvals` | List pending approval requests |
-| `decide_approval` | Approve or deny a request |
+See the [full tool registry](CLAUDE.md#mcp-tool-registry) for all tools. Highlights:
 
-### Phase 30 — Remote agent (SaaS) management
-
-Tools that surface workspaces with `runtime='external'` (agents that run on
-machines outside this platform's Docker network and join via HTTP).
-
-| Tool | Description |
-|------|-------------|
-| `list_remote_agents` | Filter the workspace list to remote agents only — id / status / url / heartbeat |
-| `get_remote_agent_state` | Lightweight `{status, paused, deleted}` projection — faster than `get_workspace` when you only need lifecycle |
-| `get_remote_agent_setup_command` | Emit a `WORKSPACE_ID=… PLATFORM_URL=… python3 …` bash one-liner an operator can paste into a remote shell |
-| `check_remote_agent_freshness` | Compare `last_heartbeat_at` against a threshold (default 90s) — returns `{fresh, seconds_since_heartbeat}` |
+| Category | Tools |
+|----------|-------|
+| Workspace | list, create, get, update, delete, restart, pause, resume |
+| Agent | chat_with, assign, replace, remove, move, get_model |
+| Delegation | async_delegate, check_delegations, record_delegation, notify_user, list_activity |
+| Secrets | set, list, delete (workspace + global variants) |
+| Files | list, read, write, delete, replace_all, get_config, update_config |
+| Memory | commit, search, delete (HMA scopes) + memory_set/get/list/delete (K/V) |
+| Plugins | list registry, list installed, install, uninstall, list sources, check compatibility |
+| Channels | list adapters, list, add, update, remove, send, test, discover chats |
+| Schedules | list, create, update, delete, run, get history |
+| Discovery | list peers, discover, check_access, list events, import/export, canvas viewport |
+| Approvals | list pending, decide, create, get workspace approvals |
+| Remote Agents | list (runtime=external), get state, setup command, check freshness |
 
 ## Setup
 
@@ -52,7 +34,7 @@ Add to your project's `.mcp.json`:
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "MOLECULE_URL": "http://localhost:8080"
+        "MOLECULE_API_URL": "http://localhost:8080"
       }
     }
   }
@@ -70,7 +52,7 @@ Add to `.cursor/mcp.json`:
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "MOLECULE_URL": "http://localhost:8080"
+        "MOLECULE_API_URL": "http://localhost:8080"
       }
     }
   }
@@ -80,15 +62,22 @@ Add to `.cursor/mcp.json`:
 ### Codex / OpenCode
 
 ```bash
-# Run directly
-MOLECULE_URL=http://localhost:8080 node mcp-server/dist/index.js
+MOLECULE_API_URL=http://localhost:8080 node mcp-server/dist/index.js
 ```
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MOLECULE_URL` | `http://localhost:8080` | Platform API URL |
+| `MOLECULE_API_URL` | `http://localhost:8080` | Platform API base URL |
+| `MOLECULE_API_KEY` | — | API key for platform authentication |
+| `MCP_SERVER_PORT` | `3000` | Port (for HTTP/SSE transport) |
+
+## Quick Start
+
+1. `npm install && npm run build`
+2. Set `MOLECULE_API_URL` and `MOLECULE_API_KEY`
+3. `npm start` (stdio mode) or use an MCP host config
 
 ## Examples
 
@@ -105,3 +94,15 @@ Agent: [calls chat_with_agent with message="Audit https://example.com for SEO"]
 You: "What skills does the coding agent have?"
 Agent: [calls get_workspace, reads agent_card.skills]
 ```
+
+## Remote Agents (Phase 30)
+
+For agents running outside the platform's Docker network, the `get_remote_agent_setup_command`
+tool generates a bash one-liner:
+
+```bash
+pip install molecule-ai-sdk
+WORKSPACE_ID=... PLATFORM_URL=... python3 -c "from molecule_agent import RemoteAgentClient; ..."
+```
+
+See the full tool registry in `CLAUDE.md` for all 87 tools.
