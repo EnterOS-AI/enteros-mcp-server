@@ -177,23 +177,24 @@ test documenting the known `optional().nullable()` zod-to-json-schema quirk.
 
 ---
 
-## KI-007 — Heartbeat cleanup fires after SSE stream closes
+## KI-007 — MCP server heartbeat tools are read-only; actual heartbeat lives in the Python SDK
 
 **File:** `src/tools/remote_agents.ts` (heartbeat tool)
-**Status:** Identified
+**Status:** Resolved — clarified scope
 **Severity:** Low
 
-### Symptom
-When using SSE transport, the heartbeat mechanism does not immediately clean up
-when a stream closes. A background timer or goroutine may continue sending heartbeats
-to workspaces whose SSE connections have been closed by the client.
+### Clarification
+The MCP server's remote-agent tools (`list_remote_agents`, `get_remote_agent_state`,
+`check_remote_agent_freshness`, `get_remote_agent_setup_command`) are **read-only
+queries** — they do not drive any background heartbeat loop. The actual
+`run_heartbeat_loop()` that sends heartbeats from a remote agent lives in the
+Python SDK (`molecule_sdk_python/molecule_agent/client.py`).
 
-### Impact
-Orphaned heartbeat calls continue consuming platform API quota after the MCP client
-has disconnected. Over time this can cause the workspace to accumulate heartbeat
-sessions that never expire on the platform side.
+The heartbeat cleanup issue (heartbeat loop continues after the controlling MCP
+client disconnects) is tracked as **SDK KI-009** in `molecule-sdk-python/known-issues.md`.
 
-### Suggested fix
-Attach a cleanup function to the SSE stream `close` event. Invalidate the heartbeat
-timer when the stream ends so no further calls are made. Document the expected
-SSE session lifecycle in the streaming convention section of CLAUDE.md.
+### Suggested fix (SDK side)
+Expose a `stop_event` parameter or `stop()` method on `RemoteAgentClient` so the
+callers (MCP client, shell wrapper) can signal the loop to exit cleanly. The
+Python SDK's `run_heartbeat_loop()` should check `threading.Event` or accept a
+`stop_on: asyncio.Event` argument. See `molecule-sdk-python/known-issues.md`.
