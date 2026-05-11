@@ -1,3 +1,5 @@
+import { error as logError } from "./utils/logger.js";
+
 // Read the platform API base URL from environment.
 // Priority: MOLECULE_API_URL (canonical CLI/SDK env var, per platform docs)
 //
@@ -19,8 +21,6 @@ export const PLATFORM_URL =
  * Shape returned by apiCall when the request fails (network error, non-2xx,
  * or non-JSON body with no error). Returned-by-value — apiCall never throws.
  */
-import { error as logError } from "./utils/logger.js";
-
 export type ApiError = { error: string; detail?: string; raw?: string; status?: number };
 
 export function isApiError(v: unknown): v is ApiError {
