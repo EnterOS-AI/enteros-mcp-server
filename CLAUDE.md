@@ -145,9 +145,9 @@ src/
 
 ## MCP Tool Registry
 
-Full list of tools exposed by this server (87 total). Each is implemented in `src/tools/<name>.ts`.
+Full list of tools exposed by this server (88 total). Each is implemented in `src/tools/<name>.ts`.
 
-### Workspace Tools (8)
+### Workspace Tools (9)
 | Tool | Description |
 |------|-------------|
 | `list_workspaces` | List all workspaces with their status, skills, and hierarchy |
@@ -157,6 +157,7 @@ Full list of tools exposed by this server (87 total). Each is implemented in `sr
 | `delete_workspace` | Delete a workspace (cascades to children) |
 | `restart_workspace` | Restart an offline or failed workspace |
 | `pause_workspace` | Pause a workspace (stops container, preserves config) |
+| `provision_workspace` | Provision a new workspace with runtime validation and read-back verification |
 | `resume_workspace` | Resume a paused workspace |
 
 ### Agent Tools (6)
