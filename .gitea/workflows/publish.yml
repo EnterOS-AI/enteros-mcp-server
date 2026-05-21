@@ -15,7 +15,7 @@ jobs:
       - run: npm test
       - name: Publish to Gitea npm registry
         env:
-          NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          NODE_AUTH_TOKEN: '${{ secrets.MOL_PACKAGE_TOKEN }}'
         run: |
           npm config set @molecule-ai:registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
           npm config set //git.moleculesai.app/api/packages/molecule-ai/npm/:_authToken "$NODE_AUTH_TOKEN"
