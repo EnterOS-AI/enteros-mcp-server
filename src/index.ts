@@ -35,6 +35,12 @@ export { PLATFORM_URL, apiCall, isApiError, platformGet, toMcpResult, toMcpText 
 export type { ApiError } from "./api.js";
 export { formatTargetSummary, parseWorkspaceTargets } from "./targets.js";
 export type { WorkspaceTarget } from "./targets.js";
+export {
+  EXTERNAL_WORKSPACE_MCP_TOOLS,
+  EXTERNAL_WORKSPACE_TOOL_NAMES,
+  externalWorkspaceToolByName,
+} from "./external_workspace_tools.js";
+export type { ExternalWorkspaceTool } from "./external_workspace_tools.js";
 
 export {
   registerWorkspaceTools,
