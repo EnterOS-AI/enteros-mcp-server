@@ -33,6 +33,8 @@ import { registerRemoteAgentTools } from "./tools/remote_agents.js";
 // export triggers a compile error instead of a silent undefined at import.
 export { PLATFORM_URL, apiCall, isApiError, platformGet, toMcpResult, toMcpText } from "./api.js";
 export type { ApiError } from "./api.js";
+export { formatTargetSummary, parseWorkspaceTargets } from "./targets.js";
+export type { WorkspaceTarget } from "./targets.js";
 
 export {
   registerWorkspaceTools,

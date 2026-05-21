@@ -8,9 +8,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20', registry-url: 'https://registry.npmjs.org' }
+        with:
+          node-version: '20'
+          registry-url: 'https://git.moleculesai.app/api/packages/molecule-ai/npm/'
       - run: npm install
       - run: npm run build
       - run: npm test
-      - run: npm publish --access public
-        env: { NODE_AUTH_TOKEN: '${{ secrets.NPM_TOKEN }}' }
+      - run: npm publish
+        env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
