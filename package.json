@@ -6,6 +6,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./external-workspace-tools": "./dist/external_workspace_tools.js",
+    "./inbox-uploads": "./dist/inbox-uploads.js",
     "./targets": "./dist/targets.js"
   },
   "types": "./dist/index.d.ts",

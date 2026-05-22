@@ -33,6 +33,22 @@ import { registerRemoteAgentTools } from "./tools/remote_agents.js";
 // export triggers a compile error instead of a silent undefined at import.
 export { PLATFORM_URL, apiCall, isApiError, platformGet, toMcpResult, toMcpText } from "./api.js";
 export type { ApiError } from "./api.js";
+// RFC#640 Layer B — chat-upload resolution flow. MANDATORY surface for
+// any /activity-polling adapter (channel plugin, telegram-style
+// adapters, codex bridges) that consumes chat_upload_receive rows.
+// See molecule_runtime/a2a_mcp_server.py::_build_channel_instructions
+// "Upload resolution (MANDATORY...)" for the spec.
+export {
+  URICache,
+  URI_CACHE_MAX_ENTRIES,
+  resolvePendingUpload,
+  rewritePendingURIs,
+  isChatUploadReceiveRow,
+} from "./inbox-uploads.js";
+export type {
+  ResolveUploadOptions,
+  ResolveUploadResult,
+} from "./inbox-uploads.js";
 export { formatTargetSummary, parseWorkspaceTargets } from "./targets.js";
 export type { WorkspaceTarget } from "./targets.js";
 export {
