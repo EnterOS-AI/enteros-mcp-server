@@ -62,6 +62,7 @@ export {
   registerWorkspaceTools,
   handleListWorkspaces,
   handleCreateWorkspace,
+  handleProvisionWorkspace,
   handleGetWorkspace,
   handleDeleteWorkspace,
   handleRestartWorkspace,
@@ -236,7 +237,7 @@ async function main() {
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logInfo("Molecule AI MCP server running on stdio (87 tools available)", { transport: "stdio", toolCount: 87 });
+  logInfo("Molecule AI MCP server running on stdio (88 tools available)", { transport: "stdio", toolCount: 88 });
 }
 
 // Only auto-start when run directly (not when imported for testing).

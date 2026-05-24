@@ -26,6 +26,7 @@ import {
   PLATFORM_URL,
   handleListWorkspaces,
   handleCreateWorkspace,
+  handleProvisionWorkspace,
   handleGetWorkspace,
   handleDeleteWorkspace,
   handleRestartWorkspace,
@@ -118,6 +119,186 @@ function expectJsonContent(result: { content: Array<{ type: string; text: string
   const parsed = JSON.parse(result.content[0].text);
   expect(parsed).toEqual(expected);
 }
+
+/**
+ * Build a fetch mock that returns a different JSON body on each
+ * successive call (call 1 -> responses[0], call 2 -> responses[1], ...).
+ * Used by provision_workspace tests where the handler does a POST
+ * (create) followed by a GET (read-back) and the two responses differ.
+ */
+function mockFetchSequence(responses: Array<{ payload: unknown; ok?: boolean; status?: number }>) {
+  const fn = jest.fn();
+  for (const r of responses) {
+    fn.mockResolvedValueOnce({
+      ok: r.ok ?? true,
+      status: r.status ?? 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify(r.payload)),
+    });
+  }
+  return fn;
+}
+
+// ============================================================
+// provision_workspace (fail-closed) tests
+// ============================================================
+
+describe("handleProvisionWorkspace (fail-closed contract)", () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  test("rejects an unsupported runtime BEFORE any platform call", async () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    const result = await handleProvisionWorkspace({
+      name: "bad",
+      runtime: "gpt-5.5-turbo",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.error).toBe("UNSUPPORTED_RUNTIME");
+    expect(parsed.provisioned).toBe(false);
+    // No side effect — fail-closed must not have touched the platform.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("returns RUNTIME_MISMATCH when platform silently falls back (the #184 footgun)", async () => {
+    // create returns id; read-back shows langgraph instead of codex.
+    global.fetch = mockFetchSequence([
+      { payload: { id: "ws-9", status: "provisioning" } },
+      { payload: { id: "ws-9", runtime: "langgraph" } },
+    ]);
+    const result = await handleProvisionWorkspace({
+      name: "codex-dev",
+      runtime: "codex",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.error).toBe("RUNTIME_MISMATCH");
+    expect(parsed.provisioned).toBe(false);
+    expect(parsed.requested_runtime).toBe("codex");
+    expect(parsed.resolved_runtime).toBe("langgraph");
+    expect(parsed.workspace_id).toBe("ws-9");
+  });
+
+  test("returns ok=true only when resolved runtime matches the request", async () => {
+    global.fetch = mockFetchSequence([
+      { payload: { id: "ws-7", status: "provisioning" } },
+      { payload: { id: "ws-7", runtime: "claude-code" } },
+    ]);
+    const result = await handleProvisionWorkspace({
+      name: "cc-dev",
+      runtime: "claude-code",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.provisioned).toBe(true);
+    expect(parsed.requested_runtime).toBe("claude-code");
+    expect(parsed.resolved_runtime).toBe("claude-code");
+  });
+
+  test("returns PROVISION_UNVERIFIED when the runtime cannot be read back", async () => {
+    global.fetch = mockFetchSequence([
+      { payload: { id: "ws-3", status: "provisioning" } },
+      { payload: { id: "ws-3" } }, // no runtime field echoed
+    ]);
+    const result = await handleProvisionWorkspace({
+      name: "hermes-dev",
+      runtime: "hermes",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.error).toBe("PROVISION_UNVERIFIED");
+    expect(parsed.provisioned).toBe(false);
+  });
+
+  test("BYO runtime (external) is not failed on a normalized runtime label", async () => {
+    global.fetch = mockFetchSequence([
+      { payload: { id: "ws-x", status: "awaiting_agent" } },
+      { payload: { id: "ws-x", runtime: "external" } },
+    ]);
+    const result = await handleProvisionWorkspace({
+      name: "byo",
+      runtime: "external",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.provisioned).toBe(true);
+  });
+
+  // Call-indexed fetch mock. provision_workspace with role_config makes
+  // up to 5 sequential calls (POST create, GET runtime, PUT config.yaml,
+  // PUT model, GET model); a per-call implementation is the robust mock
+  // for a multi-call handler (mockResolvedValueOnce chains are brittle
+  // across reset ordering once the call count exceeds ~2).
+  function mockFetchCalls(seq: unknown[]) {
+    let i = 0;
+    return jest.fn().mockImplementation(() => {
+      const payload = seq[Math.min(i, seq.length - 1)];
+      i += 1;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify(payload)),
+      });
+    });
+  }
+
+  test("role_config: applies config.yaml + model and read-back-asserts the effective model", async () => {
+    // POST create → GET runtime → PUT config.yaml → PUT model → GET model
+    global.fetch = mockFetchCalls([
+      { id: "ws-pm", status: "provisioning" },
+      { id: "ws-pm", runtime: "claude-code" },
+      { status: "saved", path: "config.yaml" },
+      { status: "saved", model: "opus" },
+      { model: "opus", source: "workspace_secrets" },
+    ]) as unknown as typeof fetch;
+    const result = await handleProvisionWorkspace({
+      name: "prod-PM",
+      runtime: "claude-code",
+      role_config: { model: "opus", config_yaml: "name: prod-PM\nruntime: claude-code\n" },
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.role_config_applied).toBe(true);
+    expect(parsed.applied.model).toBe("opus");
+    expect(parsed.applied.config_yaml).toBe("written");
+  });
+
+  test("role_config: fails closed when the effective model does not match the requested model", async () => {
+    // model write acks, but read-back still shows the template default.
+    global.fetch = mockFetchCalls([
+      { id: "ws-bad", status: "provisioning" },
+      { id: "ws-bad", runtime: "claude-code" },
+      { status: "saved", path: "config.yaml" },
+      { status: "saved", model: "opus" },
+      { model: "sonnet", source: "workspace_secrets" },
+    ]) as unknown as typeof fetch;
+    const result = await handleProvisionWorkspace({
+      name: "prod-PM",
+      runtime: "claude-code",
+      role_config: { model: "opus", config_yaml: "name: prod-PM\n" },
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.error).toBe("ROLE_CONFIG_MODEL_MISMATCH");
+    expect(parsed.role_config_applied).toBe(false);
+    expect(parsed.requested_model).toBe("opus");
+    expect(parsed.effective_model).toBe("sonnet");
+    // The workspace still exists (runtime was honored) — surface that.
+    expect(parsed.provisioned).toBe(true);
+  });
+
+  test("role_config absent → role_config_applied:false, runtime still verified", async () => {
+    global.fetch = mockFetchCalls([
+      { id: "ws-n", status: "provisioning" },
+      { id: "ws-n", runtime: "codex" },
+    ]) as unknown as typeof fetch;
+    const result = await handleProvisionWorkspace({
+      name: "plain",
+      runtime: "codex",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.role_config_applied).toBe(false);
+  });
+});
 
 // ============================================================
 // apiCall() tests
@@ -859,12 +1040,12 @@ describe("createServer()", () => {
   // and each tool() call is recorded by the mocked McpServer above. If a
   // future PR adds a tool file but forgets to call its registerXxxTools
   // from createServer(), this count drops and the test fails. We assert
-  // the concrete current tool count (87) rather than a lower bound so a
+  // the concrete current tool count (88) rather than a lower bound so a
   // silently-dropped handler is also caught.
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(87);
+    expect(names.length).toBe(88);
     // Names must be unique — a duplicate registration would indicate a
     // copy-paste mistake in one of the registerXxxTools() calls.
     expect(new Set(names).size).toBe(names.length);
