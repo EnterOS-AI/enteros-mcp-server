@@ -188,6 +188,7 @@ export interface ResolveUploadResult {
  * - `fetchImpl`: override `globalThis.fetch` for testing.
  * - `maxBytes`: per-file safety cap. Default 25 MiB matching the
  *   platform's same-side staging cap.
+ * - `timeoutMs`: timeout for each upload content/ack request. Default 15s.
  */
 export interface ResolveUploadOptions {
   workspaceId: string;
@@ -199,9 +200,51 @@ export interface ResolveUploadOptions {
   platformUrl?: string;
   fetchImpl?: typeof fetch;
   maxBytes?: number;
+  timeoutMs?: number;
 }
 
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
+const DEFAULT_UPLOAD_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`resolvePendingUpload: timeoutMs must be > 0, got ${timeoutMs}`);
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`resolvePendingUpload: ${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
+async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  label: string,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await withTimeout(
+      fetchImpl(url, {
+        ...init,
+        signal: controller.signal,
+      }),
+      timeoutMs,
+      label,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 /**
  * Fetch the bytes of a `platform-pending:<ws>/<file_id>` upload, persist
@@ -238,6 +281,7 @@ export async function resolvePendingUpload(
     platformUrl = PLATFORM_URL,
     fetchImpl = fetch,
     maxBytes = DEFAULT_MAX_BYTES,
+    timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS,
   } = opts;
 
   if (!workspaceId) throw new Error("resolvePendingUpload: workspaceId required");
@@ -250,16 +294,26 @@ export async function resolvePendingUpload(
   const ackUrl = `${baseUrl}/ack`;
 
   // Step 1: fetch content
-  const res = await fetchImpl(contentUrl, {
-    method: "GET",
-    headers: authHeaders,
-  });
+  const res = await fetchWithTimeout(
+    fetchImpl,
+    contentUrl,
+    {
+      method: "GET",
+      headers: authHeaders,
+    },
+    timeoutMs,
+    `GET ${contentUrl}`,
+  );
   if (!res.ok) {
     throw new Error(
       `resolvePendingUpload: GET ${contentUrl} returned ${res.status} ${res.statusText}`,
     );
   }
-  const ab = await res.arrayBuffer();
+  const ab = await withTimeout(
+    res.arrayBuffer(),
+    timeoutMs,
+    `read body from GET ${contentUrl}`,
+  );
   const bytes = new Uint8Array(ab);
   if (bytes.byteLength > maxBytes) {
     throw new Error(
@@ -285,11 +339,30 @@ export async function resolvePendingUpload(
   await fs.writeFile(localPath, bytes, { mode: 0o600, flag: "wx" });
 
   // Step 3: ack
-  const ackRes = await fetchImpl(ackUrl, {
-    method: "POST",
-    headers: authHeaders,
-  });
-  if (!ackRes.ok) {
+  try {
+    const ackRes = await fetchWithTimeout(
+      fetchImpl,
+      ackUrl,
+      {
+        method: "POST",
+        headers: authHeaders,
+      },
+      timeoutMs,
+      `POST ${ackUrl}`,
+    );
+    if (!ackRes.ok) {
+      // Failure here means the bytes ARE on disk but the platform row
+      // stays in the pending queue. Phase 3 sweep will eventually
+      // surface the stale row; the agent already has the local file.
+      // We log + continue rather than throw, because the user-visible
+      // outcome (agent can read the file) is achieved.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `resolvePendingUpload: POST ${ackUrl} returned ${ackRes.status} ${ackRes.statusText} ` +
+          `— bytes written locally but platform-side row not reclaimed`,
+      );
+    }
+  } catch (err) {
     // Failure here means the bytes ARE on disk but the platform row
     // stays in the pending queue. Phase 3 sweep will eventually
     // surface the stale row; the agent already has the local file.
@@ -297,7 +370,7 @@ export async function resolvePendingUpload(
     // outcome (agent can read the file) is achieved.
     // eslint-disable-next-line no-console
     console.warn(
-      `resolvePendingUpload: POST ${ackUrl} returned ${ackRes.status} ${ackRes.statusText} ` +
+      `resolvePendingUpload: POST ${ackUrl} failed: ${err instanceof Error ? err.message : String(err)} ` +
         `— bytes written locally but platform-side row not reclaimed`,
     );
   }
