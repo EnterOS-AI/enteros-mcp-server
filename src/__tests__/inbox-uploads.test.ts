@@ -212,6 +212,49 @@ describe("resolvePendingUpload", () => {
     ).rejects.toThrow(/403 Forbidden/);
   });
 
+  it("times out a stuck content fetch before writing", async () => {
+    const mockFetch = jest.fn(
+      () => new Promise<Response>(() => {}),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      resolvePendingUpload({
+        workspaceId: "ws-1",
+        fileId: "file-abc",
+        authHeaders: {},
+        cacheDir: tmpDir,
+        fetchImpl: mockFetch,
+        timeoutMs: 10,
+      }),
+    ).rejects.toThrow(/GET .* timed out after 10ms/);
+
+    expect(fs.readdirSync(tmpDir).length).toBe(0);
+  });
+
+  it("times out a stuck body read before writing", async () => {
+    const stuckResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "image/png" }),
+      arrayBuffer: () => new Promise<ArrayBuffer>(() => {}),
+    } as Response;
+    const mockFetch: typeof fetch = async () => stuckResponse;
+
+    await expect(
+      resolvePendingUpload({
+        workspaceId: "ws-1",
+        fileId: "file-abc",
+        authHeaders: {},
+        cacheDir: tmpDir,
+        fetchImpl: mockFetch,
+        timeoutMs: 10,
+      }),
+    ).rejects.toThrow(/read body from GET .* timed out after 10ms/);
+
+    expect(fs.readdirSync(tmpDir).length).toBe(0);
+  });
+
   it("throws on size-cap breach BEFORE writing", async () => {
     const bigBytes = new Uint8Array(11);
     const mockFetch: typeof fetch = async (url) => {
@@ -254,6 +297,31 @@ describe("resolvePendingUpload", () => {
     });
     expect(result.size).toBe(1);
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/POST .*\/ack returned 500/));
+    warn.mockRestore();
+  });
+
+  it("logs but does not throw when ack times out", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const mockFetch: typeof fetch = async (url) => {
+      const u = (url as string).toString();
+      if (u.endsWith("/content")) {
+        return new Response(new Uint8Array([1]), { status: 200 });
+      }
+      return new Promise<Response>(() => {});
+    };
+
+    const result = await resolvePendingUpload({
+      workspaceId: "ws-1",
+      fileId: "file-abc",
+      authHeaders: {},
+      cacheDir: tmpDir,
+      fetchImpl: mockFetch,
+      timeoutMs: 10,
+    });
+
+    expect(result.size).toBe(1);
+    expect(fs.existsSync(result.localPath)).toBe(true);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/POST .*\/ack failed: .*timed out/));
     warn.mockRestore();
   });
 
