@@ -1,12 +1,13 @@
 {
   "name": "@molecule-ai/mcp-server",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "MCP server for Molecule AI Agent Team \u2014 manage workspaces, agents, and skills from any AI coding tool",
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./external-workspace-tools": "./dist/external_workspace_tools.js",
     "./inbox-uploads": "./dist/inbox-uploads.js",
+    "./session-cursor": "./dist/session-cursor.js",
     "./targets": "./dist/targets.js"
   },
   "types": "./dist/index.d.ts",
