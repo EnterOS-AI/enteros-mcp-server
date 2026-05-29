@@ -175,6 +175,12 @@ export class CursorStore {
   }
 
   set(workspaceId: string, activityId: string): void {
+    // Ignore empty/non-string so the in-memory state can't diverge from what
+    // survives a save→load round-trip (load() drops empty/non-string values).
+    // A no-op (not a throw): callers like a poll tick advance the cursor via
+    // `set(ws, newest)` from a `void`-launched loop, where a throw would abort
+    // the tick before its save() and could wedge the cursor — a skip can't.
+    if (typeof activityId !== "string" || activityId.length === 0) return;
     this.cursors.set(workspaceId, activityId);
   }
 
@@ -193,14 +199,38 @@ export class CursorStore {
   /**
    * Atomically persist to disk (temp + rename). The temp name is PID-suffixed
    * so two writers never collide on the temp path. Throws on write failure —
-   * the caller (typically a setInterval tick) decides whether to log+swallow.
+   * the caller decides whether to log+swallow (or use {@link trySave}).
    */
   save(): void {
     const obj: Record<string, string> = {};
     for (const [k, v] of this.cursors) obj[k] = v;
     const tmp = `${this.path}.tmp.${process.pid}`;
+    // Clear any leftover temp from a crashed same-PID save first: writeFileSync
+    // only applies `mode` when it CREATES the file, so writing over a stale temp
+    // would silently inherit that file's mode (a 0o644 leak through rename).
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // No stale temp — the common case.
+    }
     writeFileSync(tmp, JSON.stringify(obj, null, 2), { mode: this.fileMode });
     renameSync(tmp, this.path);
+  }
+
+  /**
+   * {@link save} wrapped to never throw — for poll-tick / setInterval callers
+   * where an unhandled rejection would kill the loop. Returns true on success;
+   * on failure invokes `onError` (if given) and returns false. Adapters should
+   * prefer this over hand-rolling the try/catch.
+   */
+  trySave(onError?: (err: unknown) => void): boolean {
+    try {
+      this.save();
+      return true;
+    } catch (err) {
+      onError?.(err);
+      return false;
+    }
   }
 
   /** Remove the backing file. Used by a secondary session on clean exit. No-op if already gone. */
