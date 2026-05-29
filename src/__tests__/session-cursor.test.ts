@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync, statSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -124,6 +124,42 @@ describe("CursorStore", () => {
     const leftovers = readdirSync(dir).filter((n) => n.includes(".tmp."));
     expect(leftovers).toEqual([]);
     expect(JSON.parse(readFileSync(join(dir, "cursor.json"), "utf8"))).toEqual({ "ws-1": "act-100" });
+  });
+
+  it("set rejects empty / non-string so the round-trip stays total", () => {
+    const a = new CursorStore({ stateDir: dir });
+    expect(() => a.set("ws-1", "")).toThrow();
+    // @ts-expect-error — guarding the JS-caller path that bypasses the type
+    expect(() => a.set("ws-1", undefined)).toThrow();
+    expect(a.size).toBe(0); // nothing stored
+    a.set("ws-1", "act-1");
+    a.save();
+    expect(new CursorStore({ stateDir: dir }).load().get("ws-1")).toBe("act-1");
+  });
+
+  it("trySave returns true on success and false+onError on failure", () => {
+    const ok = new CursorStore({ stateDir: dir });
+    ok.set("ws-1", "act-1");
+    const errs: unknown[] = [];
+    expect(ok.trySave((e) => errs.push(e))).toBe(true);
+    expect(errs).toHaveLength(0);
+
+    // stateDir under a non-existent parent → writeFileSync throws → trySave false.
+    const bad = new CursorStore({ stateDir: join(dir, "nope", "deeper") });
+    bad.set("ws-1", "act-1");
+    expect(bad.trySave((e) => errs.push(e))).toBe(false);
+    expect(errs).toHaveLength(1);
+  });
+
+  it("save applies fileMode even over a stale same-PID temp (no 0o644 leak)", () => {
+    const a = new CursorStore({ stateDir: dir }); // default mode 0o600
+    // Simulate a crashed prior save leaving a world-readable temp.
+    const tmp = join(dir, `cursor.json.tmp.${process.pid}`);
+    writeFileSync(tmp, "{}", { mode: 0o644 });
+    chmodSync(tmp, 0o644);
+    a.set("ws-1", "act-1");
+    a.save();
+    expect(statSync(join(dir, "cursor.json")).mode & 0o777).toBe(0o600);
   });
 
   it("unlink removes the backing file and is a no-op when already gone", () => {
