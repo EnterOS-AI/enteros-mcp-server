@@ -175,13 +175,12 @@ export class CursorStore {
   }
 
   set(workspaceId: string, activityId: string): void {
-    // Reject empty/non-string so the in-memory state can't diverge from what
+    // Ignore empty/non-string so the in-memory state can't diverge from what
     // survives a save→load round-trip (load() drops empty/non-string values).
-    if (typeof activityId !== "string" || activityId.length === 0) {
-      throw new Error(
-        `CursorStore.set: activityId must be a non-empty string (workspace ${workspaceId})`,
-      );
-    }
+    // A no-op (not a throw): callers like a poll tick advance the cursor via
+    // `set(ws, newest)` from a `void`-launched loop, where a throw would abort
+    // the tick before its save() and could wedge the cursor — a skip can't.
+    if (typeof activityId !== "string" || activityId.length === 0) return;
     this.cursors.set(workspaceId, activityId);
   }
 

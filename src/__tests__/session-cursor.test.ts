@@ -126,11 +126,11 @@ describe("CursorStore", () => {
     expect(JSON.parse(readFileSync(join(dir, "cursor.json"), "utf8"))).toEqual({ "ws-1": "act-100" });
   });
 
-  it("set rejects empty / non-string so the round-trip stays total", () => {
+  it("set ignores empty / non-string so the round-trip stays total (no throw)", () => {
     const a = new CursorStore({ stateDir: dir });
-    expect(() => a.set("ws-1", "")).toThrow();
-    // @ts-expect-error — guarding the JS-caller path that bypasses the type
-    expect(() => a.set("ws-1", undefined)).toThrow();
+    a.set("ws-1", ""); // no-op, never throws
+    // @ts-expect-error — JS-caller path that bypasses the type
+    a.set("ws-1", undefined);
     expect(a.size).toBe(0); // nothing stored
     a.set("ws-1", "act-1");
     a.save();
