@@ -142,7 +142,9 @@ const GetOrgPluginAllowlistSchema = z.object({
 const SetOrgPluginAllowlistSchema = z.object({
   org_id: z.string().optional().describe("Org id (defaults to MOLECULE_ORG_ID)"),
   plugins: z.array(z.string()).describe("Full allowlist of approved plugin names (replaces existing)"),
-  enabled_by: z.string().optional().describe("Workspace id of the admin making the change (audit)"),
+  // REQUIRED: the tenant PutAllowlist handler 400s ("enabled_by is required")
+  // when this is empty, so reject it client-side rather than round-trip a 400.
+  enabled_by: z.string().min(1).describe("Workspace id of the admin making the change (audit)"),
 });
 
 // Bundles ------------------------------------------------------------------
@@ -344,8 +346,9 @@ export async function handleSetOrgPluginAllowlist(args: unknown) {
       detail: "org_id is required (or set MOLECULE_ORG_ID)",
     });
   }
-  const body: Record<string, unknown> = { plugins: p.plugins };
-  if (p.enabled_by !== undefined) body.enabled_by = p.enabled_by;
+  // enabled_by is required (validated by the schema) — always send it; the
+  // tenant handler hard-requires it (400 "enabled_by is required" otherwise).
+  const body: Record<string, unknown> = { plugins: p.plugins, enabled_by: p.enabled_by };
   return toMcpResult(
     await mgmtCall("PUT", `/orgs/${encodeURIComponent(orgId)}/plugins/allowlist`, body),
   );
@@ -579,7 +582,7 @@ export function registerManagementTools(srv: McpServer) {
     {
       org_id: z.string().optional().describe("Org id (defaults to MOLECULE_ORG_ID)"),
       plugins: z.array(z.string()).describe("Full allowlist of approved plugin names"),
-      enabled_by: z.string().optional().describe("Admin workspace id (audit)"),
+      enabled_by: z.string().min(1).describe("Admin workspace id (audit) — REQUIRED by the tenant handler"),
     },
     handleSetOrgPluginAllowlist,
   );

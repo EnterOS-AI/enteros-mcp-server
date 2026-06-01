@@ -335,6 +335,15 @@ describe("plugin allowlist tools", () => {
     expect(JSON.parse(init.body as string)).toEqual({ plugins: ["a", "b"], enabled_by: "w1" });
   });
 
+  it("set_org_plugin_allowlist rejects a missing enabled_by (no fetch)", async () => {
+    // The tenant PutAllowlist handler hard-requires enabled_by (400
+    // "enabled_by is required"); the schema must reject it client-side.
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    await expect(handleSetOrgPluginAllowlist({ plugins: ["a", "b"] })).rejects.toThrow();
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("get_org_plugin_allowlist surfaces INVALID_ARGUMENTS when no org id resolvable (no fetch)", async () => {
     delete process.env.MOLECULE_ORG_ID;
     const f = mockFetch({});
