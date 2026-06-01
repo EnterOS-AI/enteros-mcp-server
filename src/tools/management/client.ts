@@ -66,13 +66,22 @@ function managementHeaders(): Record<string, string> | ApiError {
         "API Key (dashboard → Org API Keys) presented as a tenant credential.",
     };
   }
+  const orgId = process.env.MOLECULE_ORG_ID;
+  const slug = process.env.MOLECULE_ORG_SLUG;
+  if (!orgId && !slug) {
+    return {
+      error: "AUTH_ERROR",
+      detail:
+        "MOLECULE_ORG_ID or MOLECULE_ORG_SLUG is required. The tenant host " +
+        "needs a routing header so the edge / TenantGuard can route and " +
+        "authorize against the correct org.",
+    };
+  }
   const h: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${tok}`,
   };
-  const orgId = process.env.MOLECULE_ORG_ID;
   if (orgId) h["X-Molecule-Org-Id"] = orgId;
-  const slug = process.env.MOLECULE_ORG_SLUG;
   if (slug) h["X-Molecule-Org-Slug"] = slug;
   return h;
 }
