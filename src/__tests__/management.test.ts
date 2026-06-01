@@ -46,6 +46,12 @@ import {
 import {
   handleProvisionWorkspace as mgmtProvisionWorkspace,
   handleListWorkspaces as mgmtListWorkspaces,
+  handleGetWorkspace,
+  handleRestartWorkspace,
+  handlePauseWorkspace,
+  handleResumeWorkspace,
+  handleExportBundle,
+  handleListOrgEvents,
 } from "../tools/management/index.js";
 
 const ORG_KEY = "org_testkey_abcdef";
@@ -370,7 +376,7 @@ describe("CP-tier tools (separated, gated)", () => {
     global.fetch = f as unknown as typeof fetch;
     await handleGetOrg({ slug: "agents-team" });
     const { url, init } = lastCall(f);
-    expect(url).toBe("https://api.moleculesai.app/api/v1/orgs/agents-team");
+    expect(url).toBe("https://api.moleculesai.app/api/v1/admin/orgs/agents-team");
     expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
   });
 });
@@ -412,5 +418,73 @@ describe("registration + mode", () => {
     expect(srv.registeredToolNames).toContain("provision_workspace");
     // Legacy-only tools (chat_with_agent) must NOT be present in mgmt mode.
     expect(srv.registeredToolNames).not.toContain("chat_with_agent");
+  });
+});
+
+describe("path segment escaping", () => {
+  it("escapes workspace_id in get_workspace", async () => {
+    const f = mockFetch({ id: "w1" });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtListWorkspaces(); // warm-up not needed; call directly
+    await handleSetWorkspaceSecret({ workspace_id: "a/b", key: "K", value: "V" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/a%2Fb/secrets`);
+  });
+
+  it("escapes workspace_id across lifecycle verbs", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+
+    await handleGetWorkspace({ workspace_id: "w/x" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx`);
+
+    await handleDeprovisionWorkspace({ workspace_id: "w/x" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx`);
+
+    await handleRestartWorkspace({ workspace_id: "w/x" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/restart`);
+
+    await handlePauseWorkspace({ workspace_id: "w/x" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/pause`);
+
+    await handleResumeWorkspace({ workspace_id: "w/x" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/resume`);
+  });
+
+  it("escapes workspace_id in secrets, budget, billing-mode, and token mint", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+
+    await handleListWorkspaceSecrets({ workspace_id: "w/y" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fy/secrets`);
+
+    await handleDeleteWorkspaceSecret({ workspace_id: "w/y", key: "K" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fy/secrets/K`);
+
+    await handleSetWorkspaceBudget({ workspace_id: "w/y", budget_limits: { monthly: 1 } });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fy/budget`);
+
+    await handleSetLlmBillingMode({ workspace_id: "w/y", mode: "disabled" });
+    expect(lastCall(f).url).toBe(`${HOST}/admin/workspaces/w%2Fy/llm-billing-mode`);
+
+    await handleMintWorkspaceToken({ workspace_id: "w/y" });
+    expect(lastCall(f).url).toBe(`${HOST}/admin/workspaces/w%2Fy/tokens`);
+  });
+
+  it("escapes workspace_id in bundle export and events filter", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+
+    await handleExportBundle({ workspace_id: "w/z" });
+    expect(lastCall(f).url).toBe(`${HOST}/bundles/export/w%2Fz`);
+
+    await handleListOrgEvents({ workspace_id: "w/z" });
+    expect(lastCall(f).url).toBe(`${HOST}/events/w%2Fz`);
+  });
+
+  it("does NOT double-encode already-safe ids", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetWorkspace({ workspace_id: "w1" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w1`);
   });
 });

@@ -174,7 +174,7 @@ export async function handleListWorkspaces() {
 
 export async function handleGetWorkspace(args: unknown) {
   const p = validate(args, GetWorkspaceSchema);
-  return toMcpResult(await mgmtGet(`/workspaces/${p.workspace_id}`));
+  return toMcpResult(await mgmtGet(`/workspaces/${encodeURIComponent(p.workspace_id)}`));
 }
 
 export async function handleProvisionWorkspace(args: unknown) {
@@ -197,22 +197,22 @@ export async function handleProvisionWorkspace(args: unknown) {
 
 export async function handleDeprovisionWorkspace(args: unknown) {
   const p = validate(args, DeprovisionWorkspaceSchema);
-  return toMcpResult(await mgmtCall("DELETE", `/workspaces/${p.workspace_id}`));
+  return toMcpResult(await mgmtCall("DELETE", `/workspaces/${encodeURIComponent(p.workspace_id)}`));
 }
 
 export async function handleRestartWorkspace(args: unknown) {
   const p = validate(args, WorkspaceLifecycleSchema);
-  return toMcpResult(await mgmtCall("POST", `/workspaces/${p.workspace_id}/restart`, {}));
+  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/restart`, {}));
 }
 
 export async function handlePauseWorkspace(args: unknown) {
   const p = validate(args, WorkspaceLifecycleSchema);
-  return toMcpResult(await mgmtCall("POST", `/workspaces/${p.workspace_id}/pause`, {}));
+  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/pause`, {}));
 }
 
 export async function handleResumeWorkspace(args: unknown) {
   const p = validate(args, WorkspaceLifecycleSchema);
-  return toMcpResult(await mgmtCall("POST", `/workspaces/${p.workspace_id}/resume`, {}));
+  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/resume`, {}));
 }
 
 // Secrets ------------------------------------------------------------------
@@ -221,19 +221,19 @@ export async function handleSetWorkspaceSecret(args: unknown) {
   const p = validate(args, SetWorkspaceSecretSchema);
   // POST /workspaces/:id/secrets upserts AES-256-GCM + auto-restarts the ws.
   return toMcpResult(
-    await mgmtCall("POST", `/workspaces/${p.workspace_id}/secrets`, { key: p.key, value: p.value }),
+    await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/secrets`, { key: p.key, value: p.value }),
   );
 }
 
 export async function handleListWorkspaceSecrets(args: unknown) {
   const p = validate(args, ListWorkspaceSecretsSchema);
-  return toMcpResult(await mgmtGet(`/workspaces/${p.workspace_id}/secrets`));
+  return toMcpResult(await mgmtGet(`/workspaces/${encodeURIComponent(p.workspace_id)}/secrets`));
 }
 
 export async function handleDeleteWorkspaceSecret(args: unknown) {
   const p = validate(args, DeleteWorkspaceSecretSchema);
   return toMcpResult(
-    await mgmtCall("DELETE", `/workspaces/${p.workspace_id}/secrets/${encodeURIComponent(p.key)}`),
+    await mgmtCall("DELETE", `/workspaces/${encodeURIComponent(p.workspace_id)}/secrets/${encodeURIComponent(p.key)}`),
   );
 }
 
@@ -260,14 +260,14 @@ export async function handleSetWorkspaceBudget(args: unknown) {
   if (p.budget_limits !== undefined) body.budget_limits = p.budget_limits;
   if (p.budget_limit !== undefined) body.budget_limit = p.budget_limit;
   // PATCH /workspaces/:id/budget (AdminAuth — agents cannot self-clear).
-  return toMcpResult(await mgmtCall("PATCH", `/workspaces/${p.workspace_id}/budget`, body));
+  return toMcpResult(await mgmtCall("PATCH", `/workspaces/${encodeURIComponent(p.workspace_id)}/budget`, body));
 }
 
 export async function handleSetLlmBillingMode(args: unknown) {
   const p = validate(args, SetLlmBillingModeSchema);
   // PUT /admin/workspaces/:id/llm-billing-mode. mode:null = clear override.
   return toMcpResult(
-    await mgmtCall("PUT", `/admin/workspaces/${p.workspace_id}/llm-billing-mode`, { mode: p.mode }),
+    await mgmtCall("PUT", `/admin/workspaces/${encodeURIComponent(p.workspace_id)}/llm-billing-mode`, { mode: p.mode }),
   );
 }
 
@@ -316,7 +316,7 @@ export async function handleRevokeOrgToken(args: unknown) {
 export async function handleMintWorkspaceToken(args: unknown) {
   const p = validate(args, MintWorkspaceTokenSchema);
   // POST /admin/workspaces/:id/tokens — mints a workspace-scoped bearer token.
-  return toMcpResult(await mgmtCall("POST", `/admin/workspaces/${p.workspace_id}/tokens`, {}));
+  return toMcpResult(await mgmtCall("POST", `/admin/workspaces/${encodeURIComponent(p.workspace_id)}/tokens`, {}));
 }
 
 // Plugin allowlist ---------------------------------------------------------
@@ -358,7 +358,7 @@ export async function handleSetOrgPluginAllowlist(args: unknown) {
 
 export async function handleExportBundle(args: unknown) {
   const p = validate(args, ExportBundleSchema);
-  return toMcpResult(await mgmtGet(`/bundles/export/${p.workspace_id}`));
+  return toMcpResult(await mgmtGet(`/bundles/export/${encodeURIComponent(p.workspace_id)}`));
 }
 
 export async function handleImportBundle(args: unknown) {
@@ -370,7 +370,7 @@ export async function handleImportBundle(args: unknown) {
 
 export async function handleListOrgEvents(args: unknown) {
   const p = validate(args, ListOrgEventsSchema);
-  const path = p.workspace_id ? `/events/${p.workspace_id}` : "/events";
+  const path = p.workspace_id ? `/events/${encodeURIComponent(p.workspace_id)}` : "/events";
   return toMcpResult(await mgmtGet(path));
 }
 
