@@ -376,7 +376,7 @@ describe("CP-tier tools (separated, gated)", () => {
     global.fetch = f as unknown as typeof fetch;
     await handleGetOrg({ slug: "agents-team" });
     const { url, init } = lastCall(f);
-    expect(url).toBe("https://api.moleculesai.app/api/v1/admin/orgs/agents-team");
+    expect(url).toBe("https://api.moleculesai.app/api/v1/orgs/agents-team");
     expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
   });
 });

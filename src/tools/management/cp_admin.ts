@@ -96,8 +96,8 @@ export async function handleListOrgs() {
 export async function handleGetOrg(args: unknown) {
   const p = validate(args, GetOrgSchema);
   if (!cpConfigured()) return toMcpResult(cpNotConfigured("get_org"));
-  // GET /api/v1/admin/orgs/:slug — admin-tier org detail (CP admin bearer).
-  return toMcpResult(await cpCall("GET", `/api/v1/admin/orgs/${encodeURIComponent(p.slug)}`));
+  // GET /api/v1/orgs/:slug — org detail (session+ownership or admin bearer).
+  return toMcpResult(await cpCall("GET", `/api/v1/orgs/${encodeURIComponent(p.slug)}`));
 }
 
 export function registerCpAdminTools(srv: McpServer) {
