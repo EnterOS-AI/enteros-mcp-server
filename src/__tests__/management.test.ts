@@ -120,6 +120,16 @@ describe("management auth model", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
+  it("returns AUTH_ERROR (no fetch) when org routing header is absent", async () => {
+    delete process.env.MOLECULE_ORG_ID;
+    delete process.env.MOLECULE_ORG_SLUG;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleListWorkspaceSecrets({ workspace_id: "w1" }));
+    expect(res.error).toBe("AUTH_ERROR");
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("maps a 401 to AUTH_ERROR", async () => {
     const f = mockFetch({ error: "unauthorized" }, false, 401);
     global.fetch = f as unknown as typeof fetch;
