@@ -26,6 +26,7 @@ import { registerScheduleTools } from "./tools/schedules.js";
 import { registerApprovalTools } from "./tools/approvals.js";
 import { registerDiscoveryTools } from "./tools/discovery.js";
 import { registerRemoteAgentTools } from "./tools/remote_agents.js";
+import { registerManagementTools } from "./tools/management/index.js";
 
 // Re-exports so existing importers (tests, SDK consumers) keep working.
 // Explicit names (not `export *`) so tree-shakers and TS readers can see
@@ -194,11 +195,64 @@ export {
   handleCheckRemoteAgentFreshness,
 } from "./tools/remote_agents.js";
 
+// Management registry — the cross-org / org-lifecycle management surface
+// (Org API Key, tenant host). Enabled by MOLECULE_MCP_MODE=management; see
+// createServer() and tools/management/. Exported for tests + SDK consumers.
+// Note: handleProvisionWorkspace + handleListPendingApprovals are NOT
+// re-exported here — those identifiers are already owned by the legacy
+// workspaces/approvals export blocks above. The management variants are
+// reachable via the "./tools/management/index.js" module path and are
+// wired into the server through registerManagementTools.
+export {
+  registerManagementTools,
+  handleDeprovisionWorkspace,
+  handleSetWorkspaceSecret,
+  handleListWorkspaceSecrets,
+  handleDeleteWorkspaceSecret,
+  handleSetOrgSecret,
+  handleListOrgSecrets,
+  handleDeleteOrgSecret,
+  handleSetWorkspaceBudget,
+  handleSetLlmBillingMode,
+  handleCreateOrgFromTemplate,
+  handleMintOrgToken,
+  handleListOrgTokens,
+  handleRevokeOrgToken,
+  handleMintWorkspaceToken,
+  handleGetOrgPluginAllowlist,
+  handleSetOrgPluginAllowlist,
+} from "./tools/management/index.js";
+export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
+export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured } from "./tools/management/cp_admin.js";
+
+/**
+ * Returns true when the server should run as the MANAGEMENT server (the
+ * cross-org / org-lifecycle surface) rather than the legacy single-tenant
+ * workspace-ops surface. Driven by MOLECULE_MCP_MODE=management.
+ *
+ * The two registries are mutually exclusive in one server instance because
+ * several tool names overlap (list_workspaces, get_workspace, restart/pause/
+ * resume_workspace) and the MCP SDK throws on duplicate tool names. The
+ * management registry is the SAME codebase + conventions, not a fork — it's
+ * a distinct mode of this one server (SSOT).
+ */
+export function isManagementMode(): boolean {
+  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
+}
+
 export function createServer() {
   const srv = new McpServer({
-    name: "molecule",
+    name: isManagementMode() ? "molecule-management" : "molecule",
     version: "1.0.0",
   });
+
+  if (isManagementMode()) {
+    // Management registry — Org API Key, tenant host. CP-tier tools
+    // (list_orgs/get_org) are registered by registerManagementTools via the
+    // separate cp_admin module and gated on CP_ADMIN_API_TOKEN.
+    registerManagementTools(srv);
+    return srv;
+  }
 
   registerWorkspaceTools(srv);
   registerAgentTools(srv);
@@ -237,7 +291,14 @@ async function main() {
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logInfo("Molecule AI MCP server running on stdio (88 tools available)", { transport: "stdio", toolCount: 88 });
+  if (isManagementMode()) {
+    logInfo("Molecule AI MANAGEMENT MCP server running on stdio (Org API Key, tenant host)", {
+      transport: "stdio",
+      mode: "management",
+    });
+  } else {
+    logInfo("Molecule AI MCP server running on stdio (88 tools available)", { transport: "stdio", toolCount: 88 });
+  }
 }
 
 // Only auto-start when run directly (not when imported for testing).
