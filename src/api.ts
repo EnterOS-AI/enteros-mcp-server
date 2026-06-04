@@ -28,6 +28,40 @@ export function isApiError(v: unknown): v is ApiError {
 }
 
 /**
+ * Build the Authorization header for platform requests.
+ *
+ * When MOLECULE_API_KEY is set and non-empty we send
+ * `Authorization: Bearer <key>`. This is the admin-Bearer credential the
+ * control plane expects for the majority of admin endpoints
+ * (`/cp/admin/orgs`, `/cp/admin/orgs/:slug/*`, and the workspace/agent/
+ * memory/etc. tool families that route through it).
+ *
+ * When the key is unset/empty we send NO auth header — this is deliberate
+ * back-compat so a no-auth localhost dev platform keeps working. Auth is NOT
+ * hard-required at the request layer; misconfiguration is surfaced loudly at
+ * startup (see the preflight in src/index.ts) rather than by failing closed
+ * on every call.
+ *
+ * NOTE (follow-up, tracked in issue #36): a handful of endpoints need
+ * different/extra credentials that this single Bearer does not cover —
+ *   • POST /cp/workspaces/provision and DELETE /cp/workspaces/:id need a
+ *     two-factor pair: `Authorization: Bearer <PROVISION_SHARED_SECRET>`
+ *     plus `X-Molecule-Admin-Token: <tenant admin_token>`.
+ *   • /cp/internal/llm/* need a tenant-scoped `Authorization: Bearer
+ *     <tenant admin_token>` rather than the admin key.
+ * The `extraHeaders` parameter on apiCall() is the hook that lets those tools
+ * override/augment auth per call; wiring the provision-secret env and the
+ * tenant-token fetch into those specific tools is a focused follow-up.
+ */
+export function authHeaders(): Record<string, string> {
+  const key = process.env.MOLECULE_API_KEY;
+  if (key && key.length > 0) {
+    return { Authorization: `Bearer ${key}` };
+  }
+  return {};
+}
+
+/**
  * Wrap arbitrary JSON-serialisable data in the MCP content envelope that
  * tool handlers must return. Centralised so every handler uses the exact
  * same shape (and a future switch to e.g. structured content happens once).
@@ -49,11 +83,21 @@ export async function apiCall<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
+  // Optional per-call header overrides. Merged LAST so a caller can override
+  // or augment the Bearer auth — e.g. the two-factor provision endpoints that
+  // need an additional `X-Molecule-Admin-Token`, or the tenant-scoped
+  // `/cp/internal/llm/*` endpoints that need a different Bearer (see #36).
+  extraHeaders?: Record<string, string>,
 ): Promise<T | ApiError> {
   try {
+    // Precedence: base (Content-Type) < authHeaders() < extraHeaders.
     const res = await fetch(`${PLATFORM_URL}${path}`, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...(extraHeaders ?? {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
@@ -88,6 +132,9 @@ export async function apiCall<T = unknown>(
 export async function platformGet<T = unknown>(
   path: string,
   maxRetries = 3,
+  // Optional per-call header overrides, merged LAST (same precedence as
+  // apiCall): base < authHeaders() < extraHeaders.
+  extraHeaders?: Record<string, string>,
 ): Promise<T | ApiError> {
   let attempt = 0;
 
@@ -95,7 +142,11 @@ export async function platformGet<T = unknown>(
     try {
       const res = await fetch(`${PLATFORM_URL}${path}`, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+          ...(extraHeaders ?? {}),
+        },
       });
 
       if (res.status === 429 && attempt < maxRetries) {
