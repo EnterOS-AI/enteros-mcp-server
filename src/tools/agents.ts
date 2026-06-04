@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiCall, toMcpResult, toMcpText } from "../api.js";
 import { validate } from "../utils/validation.js";
 import { platformGet } from "../api.js";
+import { buildMessageSendBody } from "../utils/a2a.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -53,12 +54,7 @@ export async function handleChatWithAgent(args: unknown): Promise<ReturnType<typ
   >(
     "POST",
     `/workspaces/${params.workspace_id}/a2a`,
-    {
-      method: "message/send",
-      params: {
-        message: { role: "user", parts: [{ type: "text", text: params.message }] },
-      },
-    },
+    buildMessageSendBody(params.message),
   );
   const parts =
     (data as { result?: { parts?: Array<{ kind?: string; text?: string }> } } | null)?.result?.parts || [];

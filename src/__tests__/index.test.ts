@@ -590,7 +590,13 @@ describe("handleChatWithAgent()", () => {
     const sent = JSON.parse(callArgs[1].body);
     expect(sent.method).toBe("message/send");
     expect(sent.params.message.role).toBe("user");
+    // Parts MUST use the a2a `kind` discriminator, NOT the legacy `type` field.
+    expect(sent.params.message.parts[0].kind).toBe("text");
+    expect(sent.params.message.parts[0].type).toBeUndefined();
     expect(sent.params.message.parts[0].text).toBe("Hi there");
+    // Envelope MUST carry a messageId.
+    expect(typeof sent.params.message.messageId).toBe("string");
+    expect(sent.params.message.messageId.length).toBeGreaterThan(0);
 
     // Text parts should be extracted and joined
     expect(result.content[0].text).toBe("Hello from agent\nSecond line");
