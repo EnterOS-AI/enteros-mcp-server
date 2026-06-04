@@ -12,7 +12,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { PLATFORM_URL, apiCall } from "./api.js";
+import { PLATFORM_URL, apiCall, platformGet, isApiError } from "./api.js";
 import { info as logInfo, warn as logWarn, error as logError } from "./utils/logger.js";
 import { registerWorkspaceTools } from "./tools/workspaces.js";
 import { registerAgentTools } from "./tools/agents.js";
@@ -286,6 +286,42 @@ async function main() {
     logWarn(`Cannot reach Molecule AI platform at ${PLATFORM_URL}. Start it with: cd platform && go run ./cmd/server`, {
       platformUrl: PLATFORM_URL,
     });
+  }
+
+  // Auth preflight (issue #36). If MOLECULE_API_KEY is set, fire one cheap
+  // auth-gated GET so a rejected key is surfaced LOUDLY at startup rather than
+  // silently 401-ing on every tool call. We reuse the discovery `/templates`
+  // path (same endpoint as the list_templates tool). We never crash on a bad
+  // key — the server still starts (e.g. so localhost no-auth tools work).
+  if (process.env.MOLECULE_API_KEY && process.env.MOLECULE_API_KEY.length > 0) {
+    try {
+      const res = await platformGet("/templates");
+      if (isApiError(res)) {
+        // platformGet stamps HTTP errors as `error: "HTTP <code>"`.
+        const m = /HTTP (\d+)/.exec(res.error);
+        const code = m ? Number(m[1]) : undefined;
+        if (code === 401 || code === 403) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `AUTH_ERROR: MOLECULE_API_KEY rejected by ${PLATFORM_URL} (HTTP ${code})`,
+          );
+        }
+        // Other errors (platform unreachable, 5xx, etc.) are already logged by
+        // the helper / health check above; the preflight only owns auth.
+      } else {
+        logInfo("MOLECULE_API_KEY accepted by platform", { platformUrl: PLATFORM_URL });
+      }
+    } catch (err) {
+      // Preflight must never crash startup.
+      logWarn("Auth preflight failed to complete (continuing startup)", {
+        platformUrl: PLATFORM_URL,
+      });
+    }
+  } else {
+    logInfo(
+      `MOLECULE_API_KEY not set — running unauthenticated (dev / no-auth localhost). Set MOLECULE_API_KEY to authenticate against ${PLATFORM_URL}.`,
+      { platformUrl: PLATFORM_URL },
+    );
   }
 
   const server = createServer();

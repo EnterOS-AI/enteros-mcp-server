@@ -34,12 +34,18 @@ Add to your project's `.mcp.json`:
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "MOLECULE_API_URL": "http://localhost:8080"
+        "MOLECULE_API_URL": "https://api.moleculesai.app",
+        "MOLECULE_API_KEY": "your-api-key-here"
       }
     }
   }
 }
 ```
+
+`MOLECULE_API_KEY` is sent as `Authorization: Bearer <key>` on every platform
+request. It may be omitted only against a no-auth localhost dev platform
+(`MOLECULE_API_URL=http://localhost:8080`); any real deployment
+(`api.moleculesai.app`, staging) requires it or every call 401s.
 
 ### Cursor
 

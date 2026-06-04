@@ -23,6 +23,7 @@ jest.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
 
 import {
   apiCall,
+  platformGet,
   PLATFORM_URL,
   handleListWorkspaces,
   handleCreateWorkspace,
@@ -305,8 +306,16 @@ describe("handleProvisionWorkspace (fail-closed contract)", () => {
 // ============================================================
 
 describe("apiCall()", () => {
+  // Ensure these baseline tests run WITHOUT an API key so the header shape is
+  // deterministic; the authenticated path has its own suite below.
+  const savedKey = process.env.MOLECULE_API_KEY;
   beforeEach(() => {
     jest.resetAllMocks();
+    delete process.env.MOLECULE_API_KEY;
+  });
+  afterAll(() => {
+    if (savedKey === undefined) delete process.env.MOLECULE_API_KEY;
+    else process.env.MOLECULE_API_KEY = savedKey;
   });
 
   test("returns parsed JSON on successful response", async () => {
@@ -322,10 +331,20 @@ describe("apiCall()", () => {
       `${PLATFORM_URL}/workspaces`,
       expect.objectContaining({
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // objectContaining: auth headers may be merged alongside Content-Type
+        // (see the "authenticated requests" suite). With no key set, only
+        // Content-Type is present, but we keep the matcher loose for clarity.
+        headers: expect.objectContaining({ "Content-Type": "application/json" }),
         body: JSON.stringify({ name: "test" }),
       })
     );
+  });
+
+  test("does NOT send an Authorization header when MOLECULE_API_KEY is unset", async () => {
+    global.fetch = mockFetch({ id: "ws-1" });
+    await apiCall("POST", "/workspaces", { name: "test" });
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("Authorization");
   });
 
   test("omits body when none provided (GET requests)", async () => {
@@ -372,6 +391,83 @@ describe("apiCall()", () => {
     await apiCall("PUT", "/test", body);
     const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
     expect(JSON.parse(callArgs.body)).toEqual(body);
+  });
+});
+
+// ============================================================
+// Authentication headers (issue #36)
+//
+// Regression guard for the bug where every platform request was sent
+// UNAUTHENTICATED: MOLECULE_API_KEY was documented as required but never
+// read, so the mock-only suite passed while prod 401'd. These tests assert
+// the Authorization: Bearer <key> header is present when the key is set and
+// absent when it is not.
+// ============================================================
+
+describe("authenticated requests (MOLECULE_API_KEY)", () => {
+  const savedKey = process.env.MOLECULE_API_KEY;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.MOLECULE_API_KEY;
+    else process.env.MOLECULE_API_KEY = savedKey;
+  });
+
+  test("apiCall attaches Authorization: Bearer <key> when MOLECULE_API_KEY is set", async () => {
+    process.env.MOLECULE_API_KEY = "sk-test-key-123";
+    global.fetch = mockFetch({ ok: true });
+    await apiCall("POST", "/cp/admin/orgs", { slug: "acme" });
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers.Authorization).toBe("Bearer sk-test-key-123");
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  test("platformGet attaches Authorization: Bearer <key> when MOLECULE_API_KEY is set", async () => {
+    process.env.MOLECULE_API_KEY = "sk-test-key-123";
+    global.fetch = mockFetch({ templates: [] });
+    await platformGet("/templates");
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers.Authorization).toBe("Bearer sk-test-key-123");
+  });
+
+  test("apiCall sends NO Authorization header when MOLECULE_API_KEY is unset", async () => {
+    delete process.env.MOLECULE_API_KEY;
+    global.fetch = mockFetch({ ok: true });
+    await apiCall("GET", "/workspaces");
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
+  test("apiCall sends NO Authorization header when MOLECULE_API_KEY is empty", async () => {
+    process.env.MOLECULE_API_KEY = "";
+    global.fetch = mockFetch({ ok: true });
+    await apiCall("GET", "/workspaces");
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
+  test("platformGet sends NO Authorization header when MOLECULE_API_KEY is unset", async () => {
+    delete process.env.MOLECULE_API_KEY;
+    global.fetch = mockFetch({ templates: [] });
+    await platformGet("/templates");
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
+  test("extraHeaders override auth (precedence base < auth < extraHeaders)", async () => {
+    process.env.MOLECULE_API_KEY = "sk-admin-key";
+    global.fetch = mockFetch({ ok: true });
+    // Simulates the two-factor provision case: a different Bearer plus an
+    // additional admin-token header (full wiring is a #36 follow-up).
+    await apiCall("DELETE", "/cp/workspaces/ws-1", undefined, {
+      Authorization: "Bearer provision-secret",
+      "X-Molecule-Admin-Token": "tenant-token",
+    });
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers.Authorization).toBe("Bearer provision-secret");
+    expect(headers["X-Molecule-Admin-Token"]).toBe("tenant-token");
   });
 });
 
