@@ -30,8 +30,10 @@ export function isApiError(v: unknown): v is ApiError {
 /**
  * Build the Authorization header for platform requests.
  *
- * When MOLECULE_API_KEY is set and non-empty we send
- * `Authorization: Bearer <key>`. This is the admin-Bearer credential the
+ * When an auth token env var is set and non-empty we send
+ * `Authorization: Bearer <token>`. Token resolution (first non-empty wins):
+ *   MOLECULE_API_KEY → MOLECULE_API_TOKEN
+ * This is the admin-Bearer credential the
  * control plane expects for the majority of admin endpoints
  * (`/cp/admin/orgs`, `/cp/admin/orgs/:slug/*`, and the workspace/agent/
  * memory/etc. tool families that route through it).
@@ -54,7 +56,7 @@ export function isApiError(v: unknown): v is ApiError {
  * tenant-token fetch into those specific tools is a focused follow-up.
  */
 export function authHeaders(): Record<string, string> {
-  const key = process.env.MOLECULE_API_KEY;
+  const key = process.env.MOLECULE_API_KEY || process.env.MOLECULE_API_TOKEN;
   if (key && key.length > 0) {
     return { Authorization: `Bearer ${key}` };
   }
