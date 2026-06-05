@@ -20,6 +20,13 @@
  */
 
 import { getContext } from "./context.js";
+import { createRequire } from "module";
+
+// This module is ESM ("type": "module"), but pino is loaded lazily via
+// require() below (so tests can mock console before the first log call).
+// Under ESM `require` is not a global, so recreate it from the module URL —
+// otherwise node throws `ReferenceError: require is not defined` on first log.
+const require = createRequire(import.meta.url);
 
 /** Logger instance returned by pino(). */
 type PinoLogger = {
