@@ -20,13 +20,13 @@
  */
 
 import { getContext } from "./context.js";
-import { createRequire } from "module";
+import pino from "pino";
 
-// This module is ESM ("type": "module"), but pino is loaded lazily via
-// require() below (so tests can mock console before the first log call).
-// Under ESM `require` is not a global, so recreate it from the module URL —
-// otherwise node throws `ReferenceError: require is not defined` on first log.
-const require = createRequire(import.meta.url);
+// pino is imported statically (works in both the ESM runtime build and the
+// ts-jest CJS transform via esModuleInterop). The pino INSTANCE is still
+// created lazily in logger() below, so tests that mock console run before the
+// first real log call. The earlier `createRequire(import.meta.url)` approach
+// crashed ts-jest (`Cannot use 'import.meta' outside a module`) — avoid it.
 
 /** Logger instance returned by pino(). */
 type PinoLogger = {
@@ -42,10 +42,11 @@ let _logger: PinoLogger | null = null;
 
 function logger(): PinoLogger {
   if (!_logger) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // pino is called untyped (as the prior `require("pino") as any` did) so the
+    // existing numeric `level` + transport/formatter options keep their runtime
+    // behavior without re-typing against pino's stricter option types.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pino = require("pino") as any;
-    _logger = pino({
+    _logger = (pino as any)({
       // Level 30 (warn) and above; quiet by default so MCP protocol traffic
       // is not logged (only application-level events).
       level: Number(process.env["LOG_LEVEL"] ?? 30),
