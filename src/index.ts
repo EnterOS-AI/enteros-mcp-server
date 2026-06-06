@@ -242,7 +242,7 @@ export function isManagementMode(): boolean {
 
 export function createServer() {
   const srv = new McpServer({
-    name: isManagementMode() ? "molecule-management" : "molecule",
+    name: isManagementMode() ? "molecule-platform" : "molecule-a2a",
     version: "1.0.0",
   });
 

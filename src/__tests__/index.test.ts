@@ -12,7 +12,9 @@
 // without reaching into the real SDK's private `_registeredTools` field.
 jest.mock("@modelcontextprotocol/sdk/server/mcp.js", () => ({
   McpServer: class {
+    name: string;
     registeredToolNames: string[] = [];
+    constructor(args: { name: string }) { this.name = args.name; }
     tool(name: string) { this.registeredToolNames.push(name); }
     connect() { return Promise.resolve(); }
   },
@@ -1126,10 +1128,29 @@ describe("handleGetModel()", () => {
 // ============================================================
 
 describe("createServer()", () => {
+  const savedMode = process.env.MOLECULE_MCP_MODE;
+
+  afterEach(() => {
+    if (savedMode === undefined) delete process.env.MOLECULE_MCP_MODE;
+    else process.env.MOLECULE_MCP_MODE = savedMode;
+  });
+
   test("returns an McpServer instance", () => {
     const server = createServer();
     expect(server).toBeDefined();
     expect(typeof server.connect).toBe("function");
+  });
+
+  test("names the A2A/channel server 'molecule-a2a' in default mode", () => {
+    delete process.env.MOLECULE_MCP_MODE;
+    const server = createServer() as unknown as { name: string };
+    expect(server.name).toBe("molecule-a2a");
+  });
+
+  test("names the management server 'molecule-platform' when MOLECULE_MCP_MODE=management", () => {
+    process.env.MOLECULE_MCP_MODE = "management";
+    const server = createServer() as unknown as { name: string };
+    expect(server.name).toBe("molecule-platform");
   });
 
   // Smoke test: every registerXxxTools(srv) wiring in createServer() runs,

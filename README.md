@@ -182,7 +182,7 @@ org-key MCP.
 ```json
 {
   "mcpServers": {
-    "molecule-management": {
+    "molecule-platform": {
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
