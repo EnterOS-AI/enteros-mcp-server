@@ -418,11 +418,13 @@ describe("recreate_workspace (CP-tier hard redeploy)", () => {
     expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
     expect(init.method).toBe("POST");
     expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
-    expect(JSON.parse(init.body as string)).toEqual({
-      runtime: "claude-code",
-      recreate: true,
-      dry_run: false,
-    });
+    const sentBody = JSON.parse(init.body as string);
+    expect(sentBody.runtime).toBe("claude-code");
+    expect(sentBody.recreate).toBe(true);
+    expect(sentBody.dry_run).toBe(false);
+    // actor is always present for the audit trail (falls back to the tenant
+    // identity when not passed explicitly).
+    expect(sentBody.actor).toBeDefined();
   });
 
   it("defaults recreate to true and dry_run to false", async () => {
@@ -454,13 +456,64 @@ describe("recreate_workspace (CP-tier hard redeploy)", () => {
     expect(JSON.parse(init.body as string).runtime).toBe("hermes");
   });
 
-  it("falls back to a tenant-wide refresh (runtime:'') with a note when the workspace lookup yields no runtime", async () => {
+  it("FAILS CLOSED: aborts (recreates NOTHING) when workspace_id is given but its runtime can't be resolved and no explicit runtime", async () => {
+    // Lookup returns a workspace row with NO runtime field → unresolvable.
+    // The tool must NOT fall back to a tenant-wide all-runtimes recreate.
     const f = mockFetch({ id: "w1", ok: true }); // no runtime field
     global.fetch = f as unknown as typeof fetch;
     const res = parsed(await handleRecreateWorkspace({ workspace_id: "w1" }));
-    expect(JSON.parse(lastCall(f).init.body as string).runtime).toBe("");
-    expect(res.note).toMatch(/could not resolve/i);
+    expect(res.error).toBe("RUNTIME_UNRESOLVED");
+    expect(res.detail).toMatch(/refusing to fall back to a tenant-wide/i);
+    // Exactly ONE fetch happened — the tenant lookup. The CP redeploy POST
+    // was NEVER issued (nothing was recreated).
+    expect(f).toHaveBeenCalledTimes(1);
+    const onlyCallUrl = f.mock.calls[0][0] as string;
+    expect(onlyCallUrl).not.toMatch(/\/redeploy$/);
+  });
+
+  it("FAILS CLOSED: aborts an unscoped recreate (no runtime, no workspace_id, no all_runtimes)", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({}));
+    expect(res.error).toBe("SCOPE_REQUIRED");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("allows an EXPLICIT tenant-wide recreate via all_runtimes:true (runtime:'')", async () => {
+    const f = mockFetch({ ok: true, result: { recreated: [] } });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ all_runtimes: true }));
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
+    expect(JSON.parse(init.body as string).runtime).toBe("");
+    expect(res.ok).toBe(true);
     expect(res.runtime_source).toBe("all_runtimes");
+  });
+
+  it("AUDIT: forwards actor + reason in the redeploy body and echoes them in the result", async () => {
+    const f = mockFetch({ ok: true, result: {} });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(
+      await handleRecreateWorkspace({
+        runtime: "claude-code",
+        actor: "devops-engineer",
+        reason: "onto promoted pin per cp#245",
+      }),
+    );
+    const body = JSON.parse(lastCall(f).init.body as string);
+    expect(body.actor).toBe("devops-engineer");
+    expect(body.reason).toBe("onto promoted pin per cp#245");
+    // The result also surfaces the audit fields for attribution.
+    expect(res.actor).toBe("devops-engineer");
+    expect(res.reason).toBe("onto promoted pin per cp#245");
+  });
+
+  it("AUDIT: actor is never anonymous — falls back to MOLECULE_AUDIT_ACTOR when not passed", async () => {
+    process.env.MOLECULE_AUDIT_ACTOR = "cr2-fleet-bot";
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleRecreateWorkspace({ runtime: "codex" });
+    expect(JSON.parse(lastCall(f).init.body as string).actor).toBe("cr2-fleet-bot");
   });
 
   it("returns INVALID_ARGUMENTS (no CP call) when no slug is resolvable", async () => {
