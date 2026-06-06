@@ -282,11 +282,23 @@ export async function handleRecreateWorkspace(args: unknown) {
   // persist them if it supports an audit field) AND a structured audit log
   // line is emitted BEFORE the recreate is issued, so the op is attributable
   // even if the endpoint ignores the fields.
+  //
+  // FAIL-CLOSED: if no actor can be resolved, abort rather than emit an
+  // anonymous/"unknown" audit trail for a destructive admin operation.
   const actor =
     p.actor ??
     process.env.MOLECULE_AUDIT_ACTOR ??
     process.env.MOLECULE_ORG_SLUG ??
-    "unknown";
+    "";
+  if (!actor) {
+    return toMcpResult({
+      error: "INVALID_ARGUMENTS",
+      detail:
+        "audit actor is required for this destructive CP-admin operation. " +
+        "Pass `actor`, or set MOLECULE_AUDIT_ACTOR / MOLECULE_ORG_SLUG.",
+      slug,
+    });
+  }
   const reason = p.reason;
   const dryRun = p.dry_run ?? false;
 

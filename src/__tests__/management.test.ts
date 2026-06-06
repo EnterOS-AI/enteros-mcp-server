@@ -516,6 +516,18 @@ describe("recreate_workspace (CP-tier hard redeploy)", () => {
     expect(JSON.parse(lastCall(f).init.body as string).actor).toBe("cr2-fleet-bot");
   });
 
+  it("FAILS CLOSED: aborts when actor is unresolvable (no actor arg, no MOLECULE_AUDIT_ACTOR, no MOLECULE_ORG_SLUG)", async () => {
+    delete process.env.MOLECULE_ORG_SLUG;
+    delete process.env.MOLECULE_AUDIT_ACTOR;
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "some-org" }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(res.detail).toMatch(/audit actor is required/i);
+    // No CP call made — the op is aborted before reaching the redeploy endpoint.
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("returns INVALID_ARGUMENTS (no CP call) when no slug is resolvable", async () => {
     delete process.env.MOLECULE_ORG_SLUG;
     const f = mockFetch({});
