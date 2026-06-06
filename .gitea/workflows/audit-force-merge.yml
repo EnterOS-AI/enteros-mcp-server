@@ -22,7 +22,16 @@ jobs:
           GITEA_HOST: ${{ github.server_url | replace('https://', '') }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          REQUIRED_CHECKS: ${{ vars.REQUIRED_CHECKS }}
-          REQUIRED_CHECKS_JSON: ${{ vars.REQUIRED_CHECKS_JSON }}
+          # Required-status-check contexts to evaluate at merge time.
+          # Branch-aware JSON dict: keys are protected branch names,
+          # values are arrays of context names that branch protection
+          # requires for that branch. Mirror this against branch
+          # protection settings for each branch listed here.
+          REQUIRED_CHECKS_JSON: |
+            {
+              "main": [
+                "CI / test (pull_request)"
+              ]
+            }
         run: |
           bash .gitea/scripts/audit-force-merge.sh
