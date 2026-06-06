@@ -53,6 +53,7 @@ import {
   handleExportBundle,
   handleListOrgEvents,
 } from "../tools/management/index.js";
+import { handleRecreateWorkspace } from "../tools/management/cp_admin.js";
 
 const ORG_KEY = "org_testkey_abcdef";
 const ORG_ID = "org-11111111";
@@ -391,6 +392,159 @@ describe("CP-tier tools (separated, gated)", () => {
   });
 });
 
+describe("recreate_workspace (CP-tier hard redeploy)", () => {
+  const CP = "https://api.moleculesai.app";
+
+  beforeEach(() => {
+    process.env.CP_ADMIN_API_TOKEN = "cp_admin_token";
+    process.env.MOLECULE_CP_URL = CP;
+    process.env.MOLECULE_ORG_SLUG = "agents-team";
+  });
+
+  it("returns CP_TIER_NOT_CONFIGURED and makes no call when CP token absent", async () => {
+    delete process.env.CP_ADMIN_API_TOKEN;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ runtime: "claude-code" }));
+    expect(res.error).toBe("CP_TIER_NOT_CONFIGURED");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("POSTs runtime+recreate to the slug-keyed redeploy endpoint with the admin bearer", async () => {
+    const f = mockFetch({ ok: true, result: { recreated: ["ws-1"] } });
+    global.fetch = f as unknown as typeof fetch;
+    await handleRecreateWorkspace({ runtime: "claude-code", recreate: true });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
+    expect(init.method).toBe("POST");
+    expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
+    const sentBody = JSON.parse(init.body as string);
+    expect(sentBody.runtime).toBe("claude-code");
+    expect(sentBody.recreate).toBe(true);
+    expect(sentBody.dry_run).toBe(false);
+    // actor is always present for the audit trail (falls back to the tenant
+    // identity when not passed explicitly).
+    expect(sentBody.actor).toBeDefined();
+  });
+
+  it("defaults recreate to true and dry_run to false", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleRecreateWorkspace({ runtime: "codex" });
+    const body = JSON.parse(lastCall(f).init.body as string);
+    expect(body.recreate).toBe(true);
+    expect(body.dry_run).toBe(false);
+  });
+
+  it("honors an explicit slug arg over MOLECULE_ORG_SLUG and url-encodes it", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleRecreateWorkspace({ runtime: "codex", slug: "other/team" });
+    expect(lastCall(f).url).toBe(`${CP}/api/v1/admin/tenants/other%2Fteam/workspaces/redeploy`);
+  });
+
+  it("derives the runtime from workspace_id via the tenant API when runtime omitted", async () => {
+    // First fetch = tenant GET /workspaces/:id (org-key host), second =
+    // the CP redeploy POST. mockFetch returns the same payload for both,
+    // so make it the workspace row carrying a runtime.
+    const f = mockFetch({ id: "w1", runtime: "hermes", ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleRecreateWorkspace({ workspace_id: "w1" });
+    // The LAST call is the CP redeploy; assert it carried the resolved runtime.
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
+    expect(JSON.parse(init.body as string).runtime).toBe("hermes");
+  });
+
+  it("FAILS CLOSED: aborts (recreates NOTHING) when workspace_id is given but its runtime can't be resolved and no explicit runtime", async () => {
+    // Lookup returns a workspace row with NO runtime field → unresolvable.
+    // The tool must NOT fall back to a tenant-wide all-runtimes recreate.
+    const f = mockFetch({ id: "w1", ok: true }); // no runtime field
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ workspace_id: "w1" }));
+    expect(res.error).toBe("RUNTIME_UNRESOLVED");
+    expect(res.detail).toMatch(/refusing to fall back to a tenant-wide/i);
+    // Exactly ONE fetch happened — the tenant lookup. The CP redeploy POST
+    // was NEVER issued (nothing was recreated).
+    expect(f).toHaveBeenCalledTimes(1);
+    const onlyCallUrl = f.mock.calls[0][0] as string;
+    expect(onlyCallUrl).not.toMatch(/\/redeploy$/);
+  });
+
+  it("FAILS CLOSED: aborts an unscoped recreate (no runtime, no workspace_id, no all_runtimes)", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({}));
+    expect(res.error).toBe("SCOPE_REQUIRED");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("allows an EXPLICIT tenant-wide recreate via all_runtimes:true (runtime:'')", async () => {
+    const f = mockFetch({ ok: true, result: { recreated: [] } });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ all_runtimes: true }));
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
+    expect(JSON.parse(init.body as string).runtime).toBe("");
+    expect(res.ok).toBe(true);
+    expect(res.runtime_source).toBe("all_runtimes");
+  });
+
+  it("AUDIT: forwards actor + reason in the redeploy body and echoes them in the result", async () => {
+    const f = mockFetch({ ok: true, result: {} });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(
+      await handleRecreateWorkspace({
+        runtime: "claude-code",
+        actor: "devops-engineer",
+        reason: "onto promoted pin per cp#245",
+      }),
+    );
+    const body = JSON.parse(lastCall(f).init.body as string);
+    expect(body.actor).toBe("devops-engineer");
+    expect(body.reason).toBe("onto promoted pin per cp#245");
+    // The result also surfaces the audit fields for attribution.
+    expect(res.actor).toBe("devops-engineer");
+    expect(res.reason).toBe("onto promoted pin per cp#245");
+  });
+
+  it("AUDIT: actor is never anonymous — falls back to MOLECULE_AUDIT_ACTOR when not passed", async () => {
+    process.env.MOLECULE_AUDIT_ACTOR = "cr2-fleet-bot";
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleRecreateWorkspace({ runtime: "codex" });
+    expect(JSON.parse(lastCall(f).init.body as string).actor).toBe("cr2-fleet-bot");
+  });
+
+  it("FAILS CLOSED: aborts when actor is unresolvable (no actor arg, no MOLECULE_AUDIT_ACTOR, no MOLECULE_ORG_SLUG)", async () => {
+    delete process.env.MOLECULE_ORG_SLUG;
+    delete process.env.MOLECULE_AUDIT_ACTOR;
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "some-org" }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(res.detail).toMatch(/audit actor is required/i);
+    // No CP call made — the op is aborted before reaching the redeploy endpoint.
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("returns INVALID_ARGUMENTS (no CP call) when no slug is resolvable", async () => {
+    delete process.env.MOLECULE_ORG_SLUG;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ runtime: "codex" }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("surfaces REDEPLOY_FAILED on an upstream CP error", async () => {
+    const f = mockFetch({ error: "tenant not found" }, false, 404);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "ghost" }));
+    expect(res.error).toBe("REDEPLOY_FAILED");
+  });
+});
+
 describe("registration + mode", () => {
   it("isManagementMode reflects MOLECULE_MCP_MODE=management", () => {
     process.env.MOLECULE_MCP_MODE = "management";
@@ -404,7 +558,7 @@ describe("registration + mode", () => {
     registerManagementTools(srv as never);
     const names = srv.registeredToolNames;
     for (const expected of [
-      "list_orgs", "get_org",
+      "list_orgs", "get_org", "recreate_workspace",
       "list_workspaces", "get_workspace", "provision_workspace", "deprovision_workspace",
       "restart_workspace", "pause_workspace", "resume_workspace",
       "set_workspace_secret", "list_workspace_secrets", "delete_workspace_secret",
