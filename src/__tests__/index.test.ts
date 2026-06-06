@@ -1293,19 +1293,19 @@ describe("Pause/resume and org handlers", () => {
     global.fetch = mockFetch({ status: "paused" });
   });
 
-  test("handlePauseWorkspace calls POST /workspaces/:id/pause", async () => {
+  test("handlePauseWorkspace calls POST /workspaces/:id/pause?cascade=true", async () => {
     await handlePauseWorkspace({ workspace_id: "ws-1" });
     expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-1/pause`,
+      `${PLATFORM_URL}/workspaces/ws-1/pause?cascade=true`,
       expect.objectContaining({ method: "POST" })
     );
   });
 
-  test("handleResumeWorkspace calls POST /workspaces/:id/resume", async () => {
+  test("handleResumeWorkspace calls POST /workspaces/:id/resume?cascade=true", async () => {
     global.fetch = mockFetch({ status: "provisioning" });
     await handleResumeWorkspace({ workspace_id: "ws-1" });
     expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-1/resume`,
+      `${PLATFORM_URL}/workspaces/ws-1/resume?cascade=true`,
       expect.objectContaining({ method: "POST" })
     );
   });

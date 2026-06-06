@@ -354,12 +354,12 @@ export async function handleUpdateWorkspace(params: {
 }
 
 export async function handlePauseWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/pause`, {});
+  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/pause?cascade=true`, {});
   return toMcpResult(data);
 }
 
 export async function handleResumeWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/resume`, {});
+  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/resume?cascade=true`, {});
   return toMcpResult(data);
 }
 

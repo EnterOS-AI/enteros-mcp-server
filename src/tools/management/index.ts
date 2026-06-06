@@ -207,12 +207,12 @@ export async function handleRestartWorkspace(args: unknown) {
 
 export async function handlePauseWorkspace(args: unknown) {
   const p = validate(args, WorkspaceLifecycleSchema);
-  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/pause`, {}));
+  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/pause?cascade=true`, {}));
 }
 
 export async function handleResumeWorkspace(args: unknown) {
   const p = validate(args, WorkspaceLifecycleSchema);
-  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/resume`, {}));
+  return toMcpResult(await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/resume?cascade=true`, {}));
 }
 
 // Secrets ------------------------------------------------------------------

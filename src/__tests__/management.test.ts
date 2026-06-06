@@ -608,10 +608,10 @@ describe("path segment escaping", () => {
     expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/restart`);
 
     await handlePauseWorkspace({ workspace_id: "w/x" });
-    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/pause`);
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/pause?cascade=true`);
 
     await handleResumeWorkspace({ workspace_id: "w/x" });
-    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/resume`);
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2Fx/resume?cascade=true`);
   });
 
   it("escapes workspace_id in secrets, budget, billing-mode, and token mint", async () => {
