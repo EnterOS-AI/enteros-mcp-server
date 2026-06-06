@@ -1,0 +1,28 @@
+name: audit-force-merge
+# Detect a §SOP-6 force-merge after PR close and emit structured audit JSON.
+# Runs on base branch (pull_request_target) so secrets are available.
+
+on:
+  pull_request_target:
+    types: [closed]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Checkout base (for scripts)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: Detect force-merge
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          GITEA_HOST: ${{ github.server_url | replace('https://', '') }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REQUIRED_CHECKS: ${{ vars.REQUIRED_CHECKS }}
+          REQUIRED_CHECKS_JSON: ${{ vars.REQUIRED_CHECKS_JSON }}
+        run: |
+          bash .gitea/scripts/audit-force-merge.sh
