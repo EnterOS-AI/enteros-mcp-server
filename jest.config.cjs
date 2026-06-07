@@ -3,6 +3,7 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   testMatch: ["**/__tests__/**/*.test.ts"],
+  testPathIgnorePatterns: ["\\.integration\\.test\\.ts$"],
   moduleNameMapper: {
     // Strip .js extensions from imports so ts-jest can resolve .ts files
     "^(\\.{1,2}/.*)\\.js$": "$1",
