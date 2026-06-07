@@ -68,13 +68,13 @@ jobs:
           # (fail-closed). REQUIRED_APPROVALS below is only a fallback used when
           # branch protection does not specify required_approvals.
           REQUIRED_APPROVALS: "2"
-          # Push-side required contexts. Checking CI / all-required (push)
+          # Push-side required contexts. Checking CI / test (push)
           # explicitly instead of the combined state avoids false-pause when
           # non-blocking jobs (continue-on-error: true) have failed — those
           # failures pollute combined state but do not gate merges.
-          # NOTE: the event-suffixed context name is intentional — branch protection
-          # MUST require `CI / all-required (pull_request)` (with suffix), NOT the
-          # bare `CI / all-required`. Gitea treats absent contexts as pending, not
-          # skipped; requiring the bare name silently blocks all merges (issue #1473).
-          PUSH_REQUIRED_CONTEXTS: CI / all-required (push)
+          # NOTE: molecule-mcp-server's CI workflow (.gitea/workflows/ci.yml)
+          # has a single job named "test", not "all-required" (that name is
+          # specific to molecule-core's aggregated sentinel). The context
+          # must match the actual job key or the queue will pause forever.
+          PUSH_REQUIRED_CONTEXTS: CI / test (push)
         run: python3 molecule-core/.gitea/scripts/gitea-merge-queue.py
