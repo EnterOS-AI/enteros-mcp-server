@@ -44,6 +44,10 @@ export function isApiError(v: unknown): v is ApiError {
  * startup (see the preflight in src/index.ts) rather than by failing closed
  * on every call.
  *
+ * SaaS tenant routing: when MOLECULE_ORG_ID (canonical) or its legacy aliases
+ * are set, we also attach `X-Molecule-Org-Id` so the multi-tenant gateway can
+ * route the request. Omitted when unset to preserve single-tenant behaviour.
+ *
  * NOTE (follow-up, tracked in issue #36): a handful of endpoints need
  * different/extra credentials that this single Bearer does not cover —
  *   • POST /cp/workspaces/provision and DELETE /cp/workspaces/:id need a
@@ -56,11 +60,19 @@ export function isApiError(v: unknown): v is ApiError {
  * tenant-token fetch into those specific tools is a focused follow-up.
  */
 export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
   const key = process.env.MOLECULE_API_KEY || process.env.MOLECULE_API_TOKEN;
   if (key && key.length > 0) {
-    return { Authorization: `Bearer ${key}` };
+    headers.Authorization = `Bearer ${key}`;
   }
-  return {};
+  const orgId =
+    process.env.MOLECULE_ORG_ID ||
+    process.env.MOLECULE_ORGANIZATION_ID ||
+    process.env.MOLECULE_ORG;
+  if (orgId && orgId.length > 0) {
+    headers["X-Molecule-Org-Id"] = orgId;
+  }
+  return headers;
 }
 
 /**
