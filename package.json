@@ -17,7 +17,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "jest"
+    "test": "jest",
+    "test:integration": "jest --config jest.integration.cjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

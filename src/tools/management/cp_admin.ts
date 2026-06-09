@@ -285,12 +285,14 @@ export async function handleRecreateWorkspace(args: unknown) {
   //
   // FAIL-CLOSED: if no actor can be resolved, abort rather than emit an
   // anonymous/"unknown" audit trail for a destructive admin operation.
+  // Also rejects the literal string "unknown" — the caller must provide
+  // an attributable identity (mcp-server#48).
   const actor =
     p.actor ??
     process.env.MOLECULE_AUDIT_ACTOR ??
     process.env.MOLECULE_ORG_SLUG ??
     "";
-  if (!actor) {
+  if (!actor || actor === "unknown") {
     return toMcpResult({
       error: "INVALID_ARGUMENTS",
       detail:

@@ -528,6 +528,17 @@ describe("recreate_workspace (CP-tier hard redeploy)", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
+  it("FAILS CLOSED: aborts when actor is explicitly 'unknown' (mcp-server#48)", async () => {
+    delete process.env.MOLECULE_ORG_SLUG;
+    delete process.env.MOLECULE_AUDIT_ACTOR;
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "some-org", actor: "unknown" }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(res.detail).toMatch(/audit actor is required/i);
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("returns INVALID_ARGUMENTS (no CP call) when no slug is resolvable", async () => {
     delete process.env.MOLECULE_ORG_SLUG;
     const f = mockFetch({});
