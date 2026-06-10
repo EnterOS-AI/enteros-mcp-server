@@ -19,7 +19,7 @@ jobs:
       - name: Detect force-merge
         env:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-          GITEA_HOST: ${{ github.server_url | replace('https://', '') }}
+          GITEA_SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # Required-status-check contexts to evaluate at merge time.
@@ -34,4 +34,9 @@ jobs:
               ]
             }
         run: |
+          # Gitea expression lexer mis-parses `| replace` as `||` (job fails before
+          # the script runs). Pass github.server_url whole and strip the scheme in shell.
+          GITEA_HOST="${GITEA_SERVER_URL#http://}"
+          GITEA_HOST="${GITEA_HOST#https://}"
+          export GITEA_HOST
           bash .gitea/scripts/audit-force-merge.sh
