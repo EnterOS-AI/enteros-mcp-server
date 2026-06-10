@@ -278,13 +278,20 @@ Full list of tools exposed by this server (88 total). Each is implemented in `sr
 | `get_remote_agent_setup_command` | Build a bash command to register an agent on a remote machine |
 | `check_remote_agent_freshness` | Check if a remote agent's heartbeat is recent |
 
-### Approvals Tools (4)
-| Tool | Description |
-|------|-------------|
-| `list_pending_approvals` | List all pending approval requests across workspaces |
-| `decide_approval` | Approve or deny a pending approval request |
-| `create_approval` | Create an approval request for a workspace |
-| `get_workspace_approvals` | List approval requests for a specific workspace |
+### Approvals Tools (4) — DEPRECATED shims over the unified requests subsystem
+These keep their original names and signatures (backward-compatible) but now
+route to the unified `/requests` endpoints with `kind=approval` (RFC
+"unified-requests-inbox", P5). New approvals land in the unified `requests`
+table and surface in the unified inbox/Approvals tab. Prefer the Requests /
+Inbox tools (`create_request` / `respond_request` / `list_inbox` /
+`check_requests`) for new work.
+
+| Tool | Description | Routes to |
+|------|-------------|-----------|
+| `list_pending_approvals` | List all pending approval requests across workspaces | `GET /requests/pending?kind=approval` |
+| `decide_approval` | Approve or deny a pending approval request (legacy `denied` -> `rejected`) | `POST /workspaces/:id/requests/:id/respond` |
+| `create_approval` | Create an approval request for a workspace | `POST /workspaces/:id/requests` (kind=approval) |
+| `get_workspace_approvals` | List requests raised by a specific workspace | `GET /workspaces/:id/requests` |
 
 ## MCP Transport Gotchas
 

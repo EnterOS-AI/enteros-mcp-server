@@ -18,7 +18,8 @@ See the [full tool registry](CLAUDE.md#mcp-tool-registry) for all tools. Highlig
 | Channels | list adapters, list, add, update, remove, send, test, discover chats |
 | Schedules | list, create, update, delete, run, get history |
 | Discovery | list peers, discover, check_access, list events, import/export, canvas viewport |
-| Approvals | list pending, decide, create, get workspace approvals |
+| Requests / Inbox | `create_request`, `list_inbox`, `check_requests`, `get_request`, `respond_request`, `add_request_message`, `cancel_request` (unified Tasks + Approvals) |
+| Approvals *(deprecated)* | `list_pending_approvals`, `decide_approval`, `create_approval`, `get_workspace_approvals` — backward-compatible shims that route to the unified requests system (`kind='approval'`); prefer the Requests / Inbox tools |
 | Remote Agents | list (runtime=external), get state, setup command, check freshness |
 
 ## Setup
@@ -121,7 +122,7 @@ because several tool names overlap).
 | Tokens | `mint_org_token`, `list_org_tokens`, `revoke_org_token`, `mint_workspace_token` |
 | Plugin governance | `get_org_plugin_allowlist`, `set_org_plugin_allowlist` |
 | Bundles | `export_bundle`, `import_bundle` |
-| Audit | `list_org_events`, `list_pending_approvals` |
+| Audit | `list_org_events`, `list_pending_approvals` *(deprecated shim → `/requests/pending?kind=approval`)* |
 | **CP-tier (gated)** | `list_orgs`, `get_org` |
 
 Each tool's input schema, endpoint, and request body are derived from the
