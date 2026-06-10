@@ -26,6 +26,7 @@ import { registerScheduleTools } from "./tools/schedules.js";
 import { registerApprovalTools } from "./tools/approvals.js";
 import { registerDiscoveryTools } from "./tools/discovery.js";
 import { registerRemoteAgentTools } from "./tools/remote_agents.js";
+import { registerIssueTools } from "./tools/issues.js";
 import { registerManagementTools } from "./tools/management/index.js";
 
 // Re-exports so existing importers (tests, SDK consumers) keep working.
@@ -222,6 +223,14 @@ export {
   handleGetOrgPluginAllowlist,
   handleSetOrgPluginAllowlist,
 } from "./tools/management/index.js";
+export {
+  registerIssueTools,
+  handleCreateIssue,
+  buildIssueBody,
+  deriveLabelNames,
+  giteaApiUrl,
+  defaultIssueRepo,
+} from "./tools/issues.js";
 export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
 export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured } from "./tools/management/cp_admin.js";
 
@@ -251,6 +260,10 @@ export function createServer() {
     // (list_orgs/get_org) are registered by registerManagementTools via the
     // separate cp_admin module and gated on CP_ADMIN_API_TOKEN.
     registerManagementTools(srv);
+    // Issue filing is useful from BOTH surfaces (an operator on the management
+    // host and an agent on the workspace surface both observe bugs worth
+    // tracking). The tool name is unique, so it is safe in both registries.
+    registerIssueTools(srv);
     return srv;
   }
 
@@ -266,6 +279,7 @@ export function createServer() {
   registerApprovalTools(srv);
   registerDiscoveryTools(srv);
   registerRemoteAgentTools(srv);
+  registerIssueTools(srv);
 
   return srv;
 }
@@ -333,7 +347,7 @@ async function main() {
       mode: "management",
     });
   } else {
-    logInfo("Molecule AI MCP server running on stdio (88 tools available)", { transport: "stdio", toolCount: 88 });
+    logInfo("Molecule AI MCP server running on stdio (89 tools available)", { transport: "stdio", toolCount: 89 });
   }
 }
 
