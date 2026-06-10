@@ -872,15 +872,15 @@ describe("handleCollapseTeam()", () => {
 });
 
 // ============================================================
-// Approvals
+// Approvals (DEPRECATED shims over the unified /requests subsystem, RFC P5)
 // ============================================================
 
 describe("handleListPendingApprovals()", () => {
-  test("GETs /approvals/pending", async () => {
+  test("GETs /requests/pending?kind=approval (unified shim)", async () => {
     global.fetch = mockFetch([{ id: "ap-1" }]);
     const result = await handleListPendingApprovals();
     expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/approvals/pending`,
+      `${PLATFORM_URL}/requests/pending?kind=approval`,
       expect.objectContaining({ method: "GET" })
     );
     expectJsonContent(result, [{ id: "ap-1" }]);
@@ -888,48 +888,55 @@ describe("handleListPendingApprovals()", () => {
 });
 
 describe("handleDecideApproval()", () => {
-  test("POSTs to /workspaces/:id/approvals/:ap_id/decide with approved decision", async () => {
-    global.fetch = mockFetch({ decided: true });
+  test("POSTs to /workspaces/:id/requests/:id/respond with action=approved", async () => {
+    global.fetch = mockFetch({ status: "approved", request_id: "ap-42" });
     const result = await handleDecideApproval({
       workspace_id: "ws-1",
       approval_id: "ap-42",
       decision: "approved",
     });
     const callArgs = (global.fetch as jest.Mock).mock.calls[0];
-    expect(callArgs[0]).toBe(`${PLATFORM_URL}/workspaces/ws-1/approvals/ap-42/decide`);
+    expect(callArgs[0]).toBe(`${PLATFORM_URL}/workspaces/ws-1/requests/ap-42/respond`);
     expect(callArgs[1].method).toBe("POST");
     const sent = JSON.parse(callArgs[1].body);
-    expect(sent.decision).toBe("approved");
-    expect(sent.decided_by).toBe("mcp-client");
-    expectJsonContent(result, { decided: true });
+    expect(sent.action).toBe("approved");
+    expect(sent.responder_type).toBe("user");
+    expect(sent.responder_id).toBe("admin");
+    expectJsonContent(result, { status: "approved", request_id: "ap-42" });
   });
 
-  test("POSTs with denied decision", async () => {
-    global.fetch = mockFetch({ decided: true });
+  test("maps legacy decision=denied to action=rejected", async () => {
+    global.fetch = mockFetch({ status: "rejected", request_id: "ap-99" });
     await handleDecideApproval({ workspace_id: "ws-1", approval_id: "ap-99", decision: "denied" });
-    const sent = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(sent.decision).toBe("denied");
+    const callArgs = (global.fetch as jest.Mock).mock.calls[0];
+    expect(callArgs[0]).toBe(`${PLATFORM_URL}/workspaces/ws-1/requests/ap-99/respond`);
+    const sent = JSON.parse(callArgs[1].body);
+    expect(sent.action).toBe("rejected");
   });
 });
 
 describe("handleCreateApproval()", () => {
-  test("POSTs to /workspaces/:id/approvals with action and reason", async () => {
-    global.fetch = mockFetch({ id: "ap-new" });
+  test("POSTs to /workspaces/:id/requests with kind=approval, action->title, reason->detail", async () => {
+    global.fetch = mockFetch({ request_id: "ap-new", status: "pending" });
     await handleCreateApproval({ workspace_id: "ws-1", action: "deploy", reason: "prod release" });
     const callArgs = (global.fetch as jest.Mock).mock.calls[0];
-    expect(callArgs[0]).toBe(`${PLATFORM_URL}/workspaces/ws-1/approvals`);
+    expect(callArgs[0]).toBe(`${PLATFORM_URL}/workspaces/ws-1/requests`);
+    expect(callArgs[1].method).toBe("POST");
     const sent = JSON.parse(callArgs[1].body);
-    expect(sent.action).toBe("deploy");
-    expect(sent.reason).toBe("prod release");
+    expect(sent.kind).toBe("approval");
+    expect(sent.recipient_type).toBe("user");
+    expect(sent.recipient_id).toBe("");
+    expect(sent.title).toBe("deploy");
+    expect(sent.detail).toBe("prod release");
   });
 });
 
 describe("handleGetWorkspaceApprovals()", () => {
-  test("GETs /workspaces/:id/approvals", async () => {
+  test("GETs /workspaces/:id/requests (unified outgoing shim)", async () => {
     global.fetch = mockFetch([{ id: "ap-1" }]);
     await handleGetWorkspaceApprovals({ workspace_id: "ws-1" });
     expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-1/approvals`,
+      `${PLATFORM_URL}/workspaces/ws-1/requests`,
       expect.objectContaining({ method: "GET" })
     );
   });
