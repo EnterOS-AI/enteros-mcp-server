@@ -1157,12 +1157,14 @@ describe("createServer()", () => {
   // and each tool() call is recorded by the mocked McpServer above. If a
   // future PR adds a tool file but forgets to call its registerXxxTools
   // from createServer(), this count drops and the test fails. We assert
-  // the concrete current tool count (88) rather than a lower bound so a
+  // the concrete current tool count (89) rather than a lower bound so a
   // silently-dropped handler is also caught.
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(88);
+    expect(names.length).toBe(89);
+    // create_issue (Gitea bug-filing) must be wired into the default surface.
+    expect(names).toContain("create_issue");
     // Names must be unique — a duplicate registration would indicate a
     // copy-paste mistake in one of the registerXxxTools() calls.
     expect(new Set(names).size).toBe(names.length);
