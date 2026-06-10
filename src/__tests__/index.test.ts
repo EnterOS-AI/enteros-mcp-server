@@ -1162,9 +1162,17 @@ describe("createServer()", () => {
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(89);
+    expect(names.length).toBe(96);
     // create_issue (Gitea bug-filing) must be wired into the default surface.
     expect(names).toContain("create_issue");
+    // Unified requests/inbox tools (RFC P2) — all 7 wired into the surface.
+    expect(names).toContain("create_request");
+    expect(names).toContain("list_inbox");
+    expect(names).toContain("check_requests");
+    expect(names).toContain("get_request");
+    expect(names).toContain("respond_request");
+    expect(names).toContain("add_request_message");
+    expect(names).toContain("cancel_request");
     // Names must be unique — a duplicate registration would indicate a
     // copy-paste mistake in one of the registerXxxTools() calls.
     expect(new Set(names).size).toBe(names.length);

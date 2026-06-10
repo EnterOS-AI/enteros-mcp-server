@@ -27,6 +27,7 @@ import { registerApprovalTools } from "./tools/approvals.js";
 import { registerDiscoveryTools } from "./tools/discovery.js";
 import { registerRemoteAgentTools } from "./tools/remote_agents.js";
 import { registerIssueTools } from "./tools/issues.js";
+import { registerRequestTools } from "./tools/requests.js";
 import { registerManagementTools } from "./tools/management/index.js";
 
 // Re-exports so existing importers (tests, SDK consumers) keep working.
@@ -231,6 +232,16 @@ export {
   giteaApiUrl,
   defaultIssueRepo,
 } from "./tools/issues.js";
+export {
+  registerRequestTools,
+  handleCreateRequest,
+  handleListInbox,
+  handleCheckRequests,
+  handleGetRequest,
+  handleRespondRequest,
+  handleAddRequestMessage,
+  handleCancelRequest,
+} from "./tools/requests.js";
 export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
 export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured } from "./tools/management/cp_admin.js";
 
@@ -264,6 +275,9 @@ export function createServer() {
     // host and an agent on the workspace surface both observe bugs worth
     // tracking). The tool name is unique, so it is safe in both registries.
     registerIssueTools(srv);
+    // Unified requests/inbox tools (RFC P2) — registered in BOTH modes, same
+    // as create_issue: an agent on either surface can raise/answer requests.
+    registerRequestTools(srv);
     return srv;
   }
 
@@ -280,6 +294,7 @@ export function createServer() {
   registerDiscoveryTools(srv);
   registerRemoteAgentTools(srv);
   registerIssueTools(srv);
+  registerRequestTools(srv);
 
   return srv;
 }
@@ -347,7 +362,7 @@ async function main() {
       mode: "management",
     });
   } else {
-    logInfo("Molecule AI MCP server running on stdio (89 tools available)", { transport: "stdio", toolCount: 89 });
+    logInfo("Molecule AI MCP server running on stdio (96 tools available)", { transport: "stdio", toolCount: 96 });
   }
 }
 
