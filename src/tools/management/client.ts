@@ -99,6 +99,7 @@ export async function mgmtCall<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
+  extraHeaders?: Record<string, string>,
 ): Promise<T | ApiError> {
   const headers = managementHeaders();
   if (!isHeaders(headers)) return headers;
@@ -106,7 +107,7 @@ export async function mgmtCall<T = unknown>(
     const base = managementUrl();
     const res = await fetch(`${base}${path}`, {
       method,
-      headers,
+      headers: { ...headers, ...(extraHeaders ?? {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {

@@ -44,6 +44,7 @@ const ProvisionWorkspaceSchema = z.object({
 
 const DeprovisionWorkspaceSchema = z.object({
   workspace_id: z.string().describe("Workspace UUID"),
+  confirm_name: z.string().optional().describe("Echo the workspace's exact name to confirm destructive action (maps to X-Confirm-Name header)"),
 });
 
 const WorkspaceLifecycleSchema = z.object({
@@ -197,7 +198,8 @@ export async function handleProvisionWorkspace(args: unknown) {
 
 export async function handleDeprovisionWorkspace(args: unknown) {
   const p = validate(args, DeprovisionWorkspaceSchema);
-  return toMcpResult(await mgmtCall("DELETE", `/workspaces/${encodeURIComponent(p.workspace_id)}`));
+  const headers = p.confirm_name ? { "X-Confirm-Name": p.confirm_name } : undefined;
+  return toMcpResult(await mgmtCall("DELETE", `/workspaces/${encodeURIComponent(p.workspace_id)}`, undefined, headers));
 }
 
 export async function handleRestartWorkspace(args: unknown) {
@@ -413,7 +415,10 @@ export function registerManagementTools(srv: McpServer) {
   srv.tool(
     "deprovision_workspace",
     "Management: delete/deprovision a workspace (cascades to children).",
-    { workspace_id: z.string().describe("Workspace UUID") },
+    {
+      workspace_id: z.string().describe("Workspace UUID"),
+      confirm_name: z.string().optional().describe("Echo the workspace's exact name to confirm destructive action"),
+    },
     handleDeprovisionWorkspace,
   );
   srv.tool(

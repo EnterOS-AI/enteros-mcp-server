@@ -543,6 +543,18 @@ describe("handleDeleteWorkspace()", () => {
       expect.objectContaining({ method: "DELETE" })
     );
   });
+
+  test("sends X-Confirm-Name header when confirm_name is provided", async () => {
+    global.fetch = mockFetch({ deleted: true });
+    await handleDeleteWorkspace({ workspace_id: "ws-del", confirm_name: "Test-PM" });
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${PLATFORM_URL}/workspaces/ws-del?confirm=true`,
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({ "X-Confirm-Name": "Test-PM" }),
+      })
+    );
+  });
 });
 
 describe("handleRestartWorkspace()", () => {

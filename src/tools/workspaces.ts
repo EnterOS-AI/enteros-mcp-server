@@ -329,8 +329,9 @@ export async function handleGetWorkspace(params: { workspace_id: string }) {
   return toMcpResult(data);
 }
 
-export async function handleDeleteWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("DELETE", `/workspaces/${params.workspace_id}?confirm=true`);
+export async function handleDeleteWorkspace(params: { workspace_id: string; confirm_name?: string }) {
+  const headers = params.confirm_name ? { "X-Confirm-Name": params.confirm_name } : undefined;
+  const data = await apiCall("DELETE", `/workspaces/${params.workspace_id}?confirm=true`, undefined, headers);
   return toMcpResult(data);
 }
 
@@ -434,8 +435,11 @@ export function registerWorkspaceTools(srv: McpServer) {
 
   srv.tool(
     "delete_workspace",
-    "Delete a workspace (cascades to children)",
-    { workspace_id: z.string().describe("Workspace ID") },
+    "Delete a workspace (cascades to children).",
+    {
+      workspace_id: z.string().describe("Workspace ID"),
+      confirm_name: z.string().optional().describe("Echo the workspace's exact name to confirm destructive action"),
+    },
     handleDeleteWorkspace
   );
 
