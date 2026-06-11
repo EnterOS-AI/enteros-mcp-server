@@ -52,6 +52,7 @@ import {
   handleResumeWorkspace,
   handleExportBundle,
   handleListOrgEvents,
+  handleCreateApproval as mgmtCreateApproval,
 } from "../tools/management/index.js";
 import { handleRecreateWorkspace } from "../tools/management/cp_admin.js";
 
@@ -156,6 +157,22 @@ describe("workspace secret tools", () => {
     expect(url).toBe(`${HOST}/workspaces/w1/secrets`);
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ key: "ANTHROPIC_API_KEY", value: "sk-x" });
+  });
+
+  it("create_approval POSTs an approval-kind request addressed to the user (mcp-server#61)", async () => {
+    const f = mockFetch({ ok: true, id: "req-1" });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtCreateApproval({ workspace_id: "w1", action: "Test approval", reason: "demo" });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w1/requests`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      kind: "approval",
+      recipient_type: "user",
+      recipient_id: "",
+      title: "Test approval",
+      detail: "demo",
+    });
   });
 
   it("list_workspace_secrets GETs /workspaces/:id/secrets", async () => {
@@ -589,7 +606,7 @@ describe("registration + mode", () => {
       "mint_org_token", "list_org_tokens", "revoke_org_token", "mint_workspace_token",
       "get_org_plugin_allowlist", "set_org_plugin_allowlist",
       "export_bundle", "import_bundle",
-      "list_org_events", "list_pending_approvals",
+      "list_org_events", "list_pending_approvals", "create_approval",
     ]) {
       expect(names).toContain(expected);
     }

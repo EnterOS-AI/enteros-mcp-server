@@ -380,6 +380,33 @@ export async function handleListPendingApprovals() {
   return toMcpResult(await mgmtGet("/approvals/pending"));
 }
 
+// create_approval (mcp-server#61) — raise an approval-kind request addressed
+// to the USER via the unified requests system (same shape the workspace-mode
+// tool uses; see ../approvals.ts handleCreateApproval). Without this tool the
+// org concierge IMPROVISED approval demos by running gated/destructive ops
+// (set_workspace_secret on itself → secret-change auto-restart → its own box
+// terminated mid-turn, twice on 2026-06-11 — core#2573). Deliberately NO
+// decide_approval here: deciding is the HUMAN side of the gate and an agent
+// must never hold it.
+const CreateApprovalMgmtSchema = z.object({
+  workspace_id: z.string().describe("Workspace the approval is raised for/anchored to"),
+  action: z.string().describe("What needs approval (becomes the request title)"),
+  reason: z.string().optional().describe("Why it's needed (becomes the detail)"),
+});
+
+export async function handleCreateApproval(args: unknown) {
+  const p = validate(args, CreateApprovalMgmtSchema);
+  return toMcpResult(
+    await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/requests`, {
+      kind: "approval",
+      recipient_type: "user",
+      recipient_id: "",
+      title: p.action,
+      detail: p.reason,
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -618,6 +645,16 @@ export function registerManagementTools(srv: McpServer) {
     "Management: list pending approval requests across the org's workspaces.",
     {},
     handleListPendingApprovals,
+  );
+  srv.tool(
+    "create_approval",
+    "Management: raise an approval request to the user for a workspace action. Use this (NEVER a destructive/gated operation) when you need a human decision or want to demonstrate the approval flow.",
+    {
+      workspace_id: z.string().describe("Workspace the approval is raised for/anchored to"),
+      action: z.string().describe("What needs approval (becomes the request title)"),
+      reason: z.string().optional().describe("Why it's needed (becomes the detail)"),
+    },
+    handleCreateApproval,
   );
 
   // --- CP-tier tools (separate module — Org API Key cannot reach CP) ---
