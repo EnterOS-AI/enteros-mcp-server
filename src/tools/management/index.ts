@@ -407,6 +407,30 @@ export async function handleCreateApproval(args: unknown) {
   );
 }
 
+// create_request — the unified form (mirrors the workspace-mode tool in
+// ../requests.ts): kind='task' asks the user to DO something; kind='approval'
+// asks the user to APPROVE something. create_approval above is the
+// approval-kind convenience alias (issue #61 names it explicitly).
+const CreateRequestMgmtSchema = z.object({
+  workspace_id: z.string().describe("Workspace the request is raised for/anchored to"),
+  kind: z.enum(["task", "approval"]).describe("task = please do X; approval = please approve X"),
+  title: z.string().describe("Short title shown in the user's inbox"),
+  detail: z.string().optional().describe("Longer context / why"),
+});
+
+export async function handleCreateRequest(args: unknown) {
+  const p = validate(args, CreateRequestMgmtSchema);
+  return toMcpResult(
+    await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/requests`, {
+      kind: p.kind,
+      recipient_type: "user",
+      recipient_id: "",
+      title: p.title,
+      detail: p.detail,
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -655,6 +679,17 @@ export function registerManagementTools(srv: McpServer) {
       reason: z.string().optional().describe("Why it's needed (becomes the detail)"),
     },
     handleCreateApproval,
+  );
+  srv.tool(
+    "create_request",
+    "Management: raise a request to the user — kind='task' asks them to DO something; kind='approval' asks them to APPROVE something. The safe way to put work or decisions in the user's inbox.",
+    {
+      workspace_id: z.string().describe("Workspace the request is raised for/anchored to"),
+      kind: z.enum(["task", "approval"]).describe("task = please do X; approval = please approve X"),
+      title: z.string().describe("Short title shown in the user's inbox"),
+      detail: z.string().optional().describe("Longer context / why"),
+    },
+    handleCreateRequest,
   );
 
   // --- CP-tier tools (separate module — Org API Key cannot reach CP) ---

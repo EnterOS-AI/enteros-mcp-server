@@ -53,6 +53,7 @@ import {
   handleExportBundle,
   handleListOrgEvents,
   handleCreateApproval as mgmtCreateApproval,
+  handleCreateRequest as mgmtCreateRequest,
 } from "../tools/management/index.js";
 import { handleRecreateWorkspace } from "../tools/management/cp_admin.js";
 
@@ -172,6 +173,21 @@ describe("workspace secret tools", () => {
       recipient_id: "",
       title: "Test approval",
       detail: "demo",
+    });
+  });
+
+  it("create_request kind=task POSTs a task-kind request to the user", async () => {
+    const f = mockFetch({ ok: true, id: "req-2" });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtCreateRequest({ workspace_id: "w1", kind: "task", title: "Review the report", detail: "by EOD" });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w1/requests`);
+    expect(JSON.parse(init.body as string)).toEqual({
+      kind: "task",
+      recipient_type: "user",
+      recipient_id: "",
+      title: "Review the report",
+      detail: "by EOD",
     });
   });
 
@@ -606,7 +622,7 @@ describe("registration + mode", () => {
       "mint_org_token", "list_org_tokens", "revoke_org_token", "mint_workspace_token",
       "get_org_plugin_allowlist", "set_org_plugin_allowlist",
       "export_bundle", "import_bundle",
-      "list_org_events", "list_pending_approvals", "create_approval",
+      "list_org_events", "list_pending_approvals", "create_approval", "create_request",
     ]) {
       expect(names).toContain(expected);
     }
