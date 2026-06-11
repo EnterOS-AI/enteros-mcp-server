@@ -234,6 +234,16 @@ describe("workspace lifecycle tools", () => {
     expect(url).toBe(`${HOST}/workspaces/w1`);
     expect(init.method).toBe("DELETE");
   });
+
+  it("deprovision_workspace sends X-Confirm-Name when confirm_name is provided", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleDeprovisionWorkspace({ workspace_id: "w1", confirm_name: "Test-PM" });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w1`);
+    expect(init.method).toBe("DELETE");
+    expect(headersOf(init)["X-Confirm-Name"]).toBe("Test-PM");
+  });
 });
 
 describe("budget + billing tools", () => {
