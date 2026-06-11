@@ -10,6 +10,14 @@ jest.mock("@modelcontextprotocol/sdk/server/mcp.js", () => ({
   McpServer: class {
     registeredToolNames: string[] = [];
     tool(name: string) {
+      // Mirror the real SDK: duplicate tool names throw at registration.
+      // Without this the composed-server test cannot catch cross-registry
+      // collisions (the management create_request duplicate killed the
+      // management server at startup on 2026-06-11; only the image smoke
+      // gate caught it).
+      if (this.registeredToolNames.includes(name)) {
+        throw new Error(`Tool ${name} is already registered`);
+      }
       this.registeredToolNames.push(name);
     }
     connect() {
@@ -53,7 +61,6 @@ import {
   handleExportBundle,
   handleListOrgEvents,
   handleCreateApproval as mgmtCreateApproval,
-  handleCreateRequest as mgmtCreateRequest,
 } from "../tools/management/index.js";
 import { handleRecreateWorkspace } from "../tools/management/cp_admin.js";
 
@@ -173,21 +180,6 @@ describe("workspace secret tools", () => {
       recipient_id: "",
       title: "Test approval",
       detail: "demo",
-    });
-  });
-
-  it("create_request kind=task POSTs a task-kind request to the user", async () => {
-    const f = mockFetch({ ok: true, id: "req-2" });
-    global.fetch = f as unknown as typeof fetch;
-    await mgmtCreateRequest({ workspace_id: "w1", kind: "task", title: "Review the report", detail: "by EOD" });
-    const { url, init } = lastCall(f);
-    expect(url).toBe(`${HOST}/workspaces/w1/requests`);
-    expect(JSON.parse(init.body as string)).toEqual({
-      kind: "task",
-      recipient_type: "user",
-      recipient_id: "",
-      title: "Review the report",
-      detail: "by EOD",
     });
   });
 
@@ -622,7 +614,7 @@ describe("registration + mode", () => {
       "mint_org_token", "list_org_tokens", "revoke_org_token", "mint_workspace_token",
       "get_org_plugin_allowlist", "set_org_plugin_allowlist",
       "export_bundle", "import_bundle",
-      "list_org_events", "list_pending_approvals", "create_approval", "create_request",
+      "list_org_events", "list_pending_approvals", "create_approval",
     ]) {
       expect(names).toContain(expected);
     }
@@ -632,10 +624,22 @@ describe("registration + mode", () => {
 
   it("createServer in management mode registers only the management surface", () => {
     process.env.MOLECULE_MCP_MODE = "management";
+    // The mock McpServer throws on duplicate names (like the real SDK), so
+    // simply composing the full management-mode server here is the
+    // regression gate against cross-registry tool-name collisions.
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     expect(srv.registeredToolNames).toContain("provision_workspace");
+    // The unified request tools come from requests.ts (BOTH modes) — the
+    // management registry must NOT duplicate them.
+    expect(srv.registeredToolNames).toContain("create_request");
+    expect(srv.registeredToolNames).toContain("create_approval");
     // Legacy-only tools (chat_with_agent) must NOT be present in mgmt mode.
     expect(srv.registeredToolNames).not.toContain("chat_with_agent");
+  });
+
+  it("createServer in workspace mode composes without tool-name collisions", () => {
+    process.env.MOLECULE_MCP_MODE = "";
+    expect(() => createServer()).not.toThrow();
   });
 });
 

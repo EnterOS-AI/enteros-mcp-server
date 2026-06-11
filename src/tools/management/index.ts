@@ -382,7 +382,11 @@ export async function handleListPendingApprovals() {
 
 // create_approval (mcp-server#61) — raise an approval-kind request addressed
 // to the USER via the unified requests system (same shape the workspace-mode
-// tool uses; see ../approvals.ts handleCreateApproval). Without this tool the
+// tool uses; see ../approvals.ts handleCreateApproval). The GENERAL form is
+// create_request from ../requests.ts, registered in BOTH modes by
+// createServer — do NOT add a management duplicate of it: the MCP SDK throws
+// on duplicate tool names and the whole management server dies at startup
+// (caught by the platform-agent image smoke gate, 2026-06-11). Without this
 // org concierge IMPROVISED approval demos by running gated/destructive ops
 // (set_workspace_secret on itself → secret-change auto-restart → its own box
 // terminated mid-turn, twice on 2026-06-11 — core#2573). Deliberately NO
@@ -403,30 +407,6 @@ export async function handleCreateApproval(args: unknown) {
       recipient_id: "",
       title: p.action,
       detail: p.reason,
-    }),
-  );
-}
-
-// create_request — the unified form (mirrors the workspace-mode tool in
-// ../requests.ts): kind='task' asks the user to DO something; kind='approval'
-// asks the user to APPROVE something. create_approval above is the
-// approval-kind convenience alias (issue #61 names it explicitly).
-const CreateRequestMgmtSchema = z.object({
-  workspace_id: z.string().describe("Workspace the request is raised for/anchored to"),
-  kind: z.enum(["task", "approval"]).describe("task = please do X; approval = please approve X"),
-  title: z.string().describe("Short title shown in the user's inbox"),
-  detail: z.string().optional().describe("Longer context / why"),
-});
-
-export async function handleCreateRequest(args: unknown) {
-  const p = validate(args, CreateRequestMgmtSchema);
-  return toMcpResult(
-    await mgmtCall("POST", `/workspaces/${encodeURIComponent(p.workspace_id)}/requests`, {
-      kind: p.kind,
-      recipient_type: "user",
-      recipient_id: "",
-      title: p.title,
-      detail: p.detail,
     }),
   );
 }
@@ -679,17 +659,6 @@ export function registerManagementTools(srv: McpServer) {
       reason: z.string().optional().describe("Why it's needed (becomes the detail)"),
     },
     handleCreateApproval,
-  );
-  srv.tool(
-    "create_request",
-    "Management: raise a request to the user — kind='task' asks them to DO something; kind='approval' asks them to APPROVE something. The safe way to put work or decisions in the user's inbox.",
-    {
-      workspace_id: z.string().describe("Workspace the request is raised for/anchored to"),
-      kind: z.enum(["task", "approval"]).describe("task = please do X; approval = please approve X"),
-      title: z.string().describe("Short title shown in the user's inbox"),
-      detail: z.string().optional().describe("Longer context / why"),
-    },
-    handleCreateRequest,
   );
 
   // --- CP-tier tools (separate module — Org API Key cannot reach CP) ---
