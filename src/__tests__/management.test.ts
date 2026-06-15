@@ -62,7 +62,11 @@ import {
   handleListOrgEvents,
   handleCreateApproval as mgmtCreateApproval,
 } from "../tools/management/index.js";
-import { handleRecreateWorkspace } from "../tools/management/cp_admin.js";
+import {
+  handleRecreateWorkspace,
+  handleMigrateWorkspaceProvider,
+  handleGetWorkspaceMigrationStatus,
+} from "../tools/management/cp_admin.js";
 
 const ORG_KEY = "org_testkey_abcdef";
 const ORG_ID = "org-11111111";
@@ -591,6 +595,181 @@ describe("recreate_workspace (CP-tier hard redeploy)", () => {
   });
 });
 
+describe("migrate_workspace_provider (CP-tier cross-cloud migration)", () => {
+  const CP = "https://api.moleculesai.app";
+
+  beforeEach(() => {
+    process.env.CP_ADMIN_API_TOKEN = "cp_admin_token";
+    process.env.MOLECULE_CP_URL = CP;
+  });
+
+  it("returns CP_TIER_NOT_CONFIGURED and makes no call when CP token absent", async () => {
+    delete process.env.CP_ADMIN_API_TOKEN;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", from: "aws", confirm: true }));
+    expect(res.error).toBe("CP_TIER_NOT_CONFIGURED");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("POSTs {from,to,confirm:true} to the admin migrate-provider endpoint with the admin bearer", async () => {
+    const f = mockFetch({ status: "migration_started", workspace_id: "w1", from: "aws", to: "hetzner" });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", from: "aws", confirm: true }));
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/workspaces/w1/migrate-provider`);
+    expect(init.method).toBe("POST");
+    expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({ from: "aws", to: "hetzner", confirm: true });
+    expect(res.ok).toBe(true);
+    expect(res.from_source).toBe("explicit");
+    expect(res.result.status).toBe("migration_started");
+  });
+
+  it("REFUSES without confirm:true — no CP call (defaults confirm to false)", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", from: "aws" }));
+    expect(res.error).toBe("CONFIRMATION_REQUIRED");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("rejects from === to at the schema layer (no fetch)", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await expect(
+      handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "aws", from: "aws", confirm: true }),
+    ).rejects.toThrow();
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid provider enum (no fetch)", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    await expect(
+      handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "azure" as never, from: "aws", confirm: true }),
+    ).rejects.toThrow();
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("requires from_instance_id for a non-AWS source (no CP call)", async () => {
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "aws", from: "hetzner", confirm: true }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(res.detail).toMatch(/from_instance_id is required/i);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("forwards from_instance_id for a non-AWS source", async () => {
+    const f = mockFetch({ status: "migration_started" });
+    global.fetch = f as unknown as typeof fetch;
+    await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "aws", from: "gcp", from_instance_id: "gcp-box-9", confirm: true });
+    const body = JSON.parse(lastCall(f).init.body as string);
+    expect(body).toEqual({ from: "gcp", to: "aws", confirm: true, from_instance_id: "gcp-box-9" });
+  });
+
+  it("auto-resolves `from` from the workspace's current provider when omitted", async () => {
+    // First fetch = tenant GET /workspaces/:id (carries provider); second = CP POST.
+    // mockFetch returns the same payload for both, so include a `provider` field.
+    const f = mockFetch({ id: "w1", provider: "aws", status: "migration_started" });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", confirm: true }));
+    // First call = tenant lookup on the org-key host; last = CP migrate POST.
+    expect(f.mock.calls[0][0]).toContain("/workspaces/w1");
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/workspaces/w1/migrate-provider`);
+    expect(JSON.parse(init.body as string)).toEqual({ from: "aws", to: "hetzner", confirm: true });
+    expect(res.from_source).toBe("workspace_lookup");
+  });
+
+  it("FROM_UNRESOLVED when `from` omitted and the workspace reports no provider", async () => {
+    const f = mockFetch({ id: "w1" }); // no provider field
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", confirm: true }));
+    expect(res.error).toBe("FROM_UNRESOLVED");
+    // Only the tenant lookup happened — the CP migrate POST was never issued.
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(f.mock.calls[0][0]).not.toMatch(/migrate-provider/);
+  });
+
+  it("INVALID_ARGUMENTS when an auto-resolved `from` equals `to`", async () => {
+    const f = mockFetch({ id: "w1", provider: "hetzner" });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", confirm: true }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(res.detail).toMatch(/same provider/i);
+    expect(f).toHaveBeenCalledTimes(1); // lookup only, no migrate POST
+  });
+
+  it("surfaces MIGRATION_START_FAILED on an upstream CP error", async () => {
+    const f = mockFetch({ error: "migrator not configured" }, false, 503);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleMigrateWorkspaceProvider({ workspace_id: "w1", to: "hetzner", from: "aws", confirm: true }));
+    expect(res.error).toBe("MIGRATION_START_FAILED");
+  });
+
+  it("url-encodes the workspace id in the path", async () => {
+    const f = mockFetch({ status: "migration_started" });
+    global.fetch = f as unknown as typeof fetch;
+    await handleMigrateWorkspaceProvider({ workspace_id: "w/1", to: "hetzner", from: "aws", confirm: true });
+    expect(lastCall(f).url).toBe(`${CP}/api/v1/admin/workspaces/w%2F1/migrate-provider`);
+  });
+});
+
+describe("get_workspace_migration_status (CP-tier read)", () => {
+  const CP = "https://api.moleculesai.app";
+
+  beforeEach(() => {
+    process.env.CP_ADMIN_API_TOKEN = "cp_admin_token";
+    process.env.MOLECULE_CP_URL = CP;
+  });
+
+  it("returns CP_TIER_NOT_CONFIGURED and makes no call when CP token absent", async () => {
+    delete process.env.CP_ADMIN_API_TOKEN;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetWorkspaceMigrationStatus({ workspace_id: "w1" }));
+    expect(res.error).toBe("CP_TIER_NOT_CONFIGURED");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("GETs the migrate-provider endpoint and returns the migration record", async () => {
+    const f = mockFetch({ migration: { state: "provisioning_target", from_provider: "aws", to_provider: "hetzner" }, terminal: false });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetWorkspaceMigrationStatus({ workspace_id: "w1" }));
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${CP}/api/v1/admin/workspaces/w1/migrate-provider`);
+    expect(init.method).toBe("GET");
+    expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
+    expect(res.ok).toBe(true);
+    expect(res.migration.state).toBe("provisioning_target");
+    expect(res.terminal).toBe(false);
+  });
+
+  it("maps a 404 to a clean NOT_FOUND (never migrated)", async () => {
+    const f = mockFetch({ error: "no migration found" }, false, 404);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetWorkspaceMigrationStatus({ workspace_id: "w1" }));
+    expect(res.error).toBe("NOT_FOUND");
+  });
+
+  it("surfaces MIGRATION_STATUS_FAILED on a non-404 CP error", async () => {
+    const f = mockFetch({ error: "boom" }, false, 500);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetWorkspaceMigrationStatus({ workspace_id: "w1" }));
+    expect(res.error).toBe("MIGRATION_STATUS_FAILED");
+  });
+
+  it("url-encodes the workspace id", async () => {
+    const f = mockFetch({ migration: {}, terminal: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetWorkspaceMigrationStatus({ workspace_id: "w/1" });
+    expect(lastCall(f).url).toBe(`${CP}/api/v1/admin/workspaces/w%2F1/migrate-provider`);
+  });
+});
+
 describe("registration + mode", () => {
   it("isManagementMode reflects MOLECULE_MCP_MODE=management", () => {
     process.env.MOLECULE_MCP_MODE = "management";
@@ -605,6 +784,7 @@ describe("registration + mode", () => {
     const names = srv.registeredToolNames;
     for (const expected of [
       "list_orgs", "get_org", "recreate_workspace",
+      "migrate_workspace_provider", "get_workspace_migration_status",
       "list_workspaces", "get_workspace", "provision_workspace", "deprovision_workspace",
       "restart_workspace", "pause_workspace", "resume_workspace",
       "set_workspace_secret", "list_workspace_secrets", "delete_workspace_secret",

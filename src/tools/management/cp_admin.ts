@@ -362,6 +362,238 @@ export async function handleRecreateWorkspace(args: unknown) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Cross-cloud compute-provider migration (mcp-server#64)
+//
+// The canvas can move a workspace's compute box across clouds (AWS ↔ Hetzner ↔
+// GCP) but the management MCP/CLI could not — a real capability gap. These two
+// tools wrap the CP-admin endpoint:
+//
+//   POST /api/v1/admin/workspaces/:id/migrate-provider
+//        {from, to, confirm:true, [from_instance_id], [org_id], [runtime], …}
+//     → 202 {status:"migration_started", workspace_id, from, to}
+//   GET  /api/v1/admin/workspaces/:id/migrate-provider (alias …/migration-status)
+//     → 200 {migration:{state, from_provider, to_provider, detail, …}, terminal}
+//
+// (controlplane internal/handlers/admin_workspace_migrate_provider.go). The
+// migration is DATA-SAFE + ASYNC (~15-20 min): CP snapshots the source's
+// /workspace to R2, provisions the target which restores on boot, verifies it's
+// healthy, then retires the source. Verify-before-destroy + rollback live in CP.
+//
+// This is a CP-tier op (CP_ADMIN_API_TOKEN) — the Org API Key cannot reach the
+// control plane, so it lives here alongside the other cp_admin tools.
+//
+// Client-side guards mirror the CP handler so a bad call fails fast with a clear
+// message instead of round-tripping a 400/503:
+//   - `to` is required and must be aws|hetzner|gcp.
+//   - `from` is required by CP and must differ from `to`.
+//   - `confirm:true` is mandatory (a real migration mutates two clouds). We
+//     DEFAULT confirm to false and refuse without it — never auto-confirm a
+//     destructive cross-cloud op.
+//   - `from_instance_id` is required by CP for NON-AWS sources (Hetzner/GCP have
+//     no workspace→instance resolver). For AWS it's optional (CP resolves the
+//     real instance from EC2 tags, cp#711). We enforce the same so a non-AWS
+//     migration doesn't fail downstream with a confusing CP 400.
+// ---------------------------------------------------------------------------
+
+const PROVIDERS = ["aws", "hetzner", "gcp"] as const;
+
+const MigrateWorkspaceProviderSchema = z
+  .object({
+    workspace_id: z.string().describe("Workspace UUID whose compute box to migrate across clouds."),
+    to: z.enum(PROVIDERS).describe("Target compute provider (aws|hetzner|gcp). REQUIRED."),
+    from: z
+      .enum(PROVIDERS)
+      .optional()
+      .describe(
+        "Current compute provider (aws|hetzner|gcp). Required by the control plane; must differ from `to`. If omitted, the tool resolves it from the workspace's current provider via the tenant API.",
+      ),
+    from_instance_id: z
+      .string()
+      .optional()
+      .describe(
+        "Current box id to snapshot + retire. REQUIRED for non-AWS (Hetzner/GCP) sources — they have no workspace→instance resolver. Optional for AWS (CP resolves the real instance from EC2 tags).",
+      ),
+    org_id: z
+      .string()
+      .optional()
+      .describe("Hint for non-AWS sources; CP resolves org from EC2 tags for AWS. Usually unnecessary — CP fills it from tenant_resources."),
+    runtime: z
+      .string()
+      .optional()
+      .describe("Runtime hint for non-AWS sources (e.g. 'claude-code'). Usually unnecessary — CP fills it from tenant_resources."),
+    confirm: z
+      .boolean()
+      .optional()
+      .describe(
+        "MUST be true to actually migrate — a real migration mutates two clouds. Defaults to false; the tool refuses without explicit confirmation.",
+      ),
+  })
+  .refine((v) => v.from === undefined || v.from !== v.to, {
+    message: "`from` and `to` are the same provider — nothing to migrate",
+  });
+
+const GetWorkspaceMigrationStatusSchema = z.object({
+  workspace_id: z.string().describe("Workspace UUID to read the latest provider-migration status for."),
+});
+
+/**
+ * migrate_workspace_provider — start a data-safe cross-cloud provider switch.
+ *
+ * Resolves `from` (when omitted) from the workspace's current provider via the
+ * tenant API, enforces the CP contract's guards client-side, then POSTs to the
+ * CP-admin endpoint. Returns the 202 {status:"migration_started", …} body. The
+ * migration runs asynchronously (~15-20 min) — poll get_workspace_migration_status.
+ */
+export async function handleMigrateWorkspaceProvider(args: unknown) {
+  const p = validate(args, MigrateWorkspaceProviderSchema);
+
+  if (!cpConfigured()) return toMcpResult(cpNotConfigured("migrate_workspace_provider"));
+
+  // Resolve `from` when omitted — the CP handler REQUIRES it. The workspace's
+  // current provider is on its tenant row (org-key host); fall back to a clear
+  // error rather than letting CP 400 with "from and to must each be one of …".
+  let from = p.from as string | undefined;
+  let fromSource: "explicit" | "workspace_lookup" = from ? "explicit" : "workspace_lookup";
+  if (!from) {
+    const ws = await mgmtGet(`/workspaces/${encodeURIComponent(p.workspace_id)}`);
+    if (!isApiError(ws) && ws && typeof ws === "object") {
+      const rec = ws as Record<string, unknown>;
+      const prov = rec.provider ?? rec.compute_provider;
+      if (typeof prov === "string" && PROVIDERS.includes(prov as (typeof PROVIDERS)[number])) {
+        from = prov;
+        fromSource = "workspace_lookup";
+      }
+    }
+    if (!from) {
+      return toMcpResult({
+        error: "FROM_UNRESOLVED",
+        detail:
+          `could not resolve the current provider for workspace '${p.workspace_id}' ` +
+          "(tenant lookup unavailable, workspace not found, or it reports no provider). " +
+          "Pass `from` explicitly (one of aws|hetzner|gcp).",
+        workspace_id: p.workspace_id,
+        to: p.to,
+      });
+    }
+  }
+
+  if (from === p.to) {
+    return toMcpResult({
+      error: "INVALID_ARGUMENTS",
+      detail: `from and to are the same provider (${from}) — nothing to migrate`,
+      workspace_id: p.workspace_id,
+    });
+  }
+
+  // from_instance_id is REQUIRED for non-AWS sources (no workspace→instance
+  // resolver). Enforce it here so the call fails fast with a clear message
+  // instead of a confusing CP 400.
+  if (from !== "aws" && !p.from_instance_id) {
+    return toMcpResult({
+      error: "INVALID_ARGUMENTS",
+      detail:
+        `from_instance_id is required for a non-AWS (${from}) source — it has no ` +
+        "workspace→instance resolver, so the current box id is needed to snapshot + retire it.",
+      workspace_id: p.workspace_id,
+      from,
+      to: p.to,
+    });
+  }
+
+  // confirm defaults to FALSE — never auto-confirm a destructive two-cloud op.
+  const confirm = p.confirm ?? false;
+  if (!confirm) {
+    return toMcpResult({
+      error: "CONFIRMATION_REQUIRED",
+      detail:
+        "refusing to migrate without confirmation — a real migration mutates two clouds " +
+        "(snapshot source → provision target → retire source). Pass confirm:true to proceed.",
+      workspace_id: p.workspace_id,
+      from,
+      to: p.to,
+    });
+  }
+
+  logWarn("migrate_workspace_provider: CP-admin cross-cloud provider switch", {
+    audit: true,
+    operation: "migrate_workspace_provider",
+    workspace_id: p.workspace_id,
+    from,
+    to: p.to,
+    from_source: fromSource,
+    from_instance_id: p.from_instance_id ?? null,
+    timestamp: new Date().toISOString(),
+  });
+
+  const body: Record<string, unknown> = { from, to: p.to, confirm: true };
+  if (p.from_instance_id !== undefined) body.from_instance_id = p.from_instance_id;
+  if (p.org_id !== undefined) body.org_id = p.org_id;
+  if (p.runtime !== undefined) body.runtime = p.runtime;
+
+  const res = await cpCall(
+    "POST",
+    `/api/v1/admin/workspaces/${encodeURIComponent(p.workspace_id)}/migrate-provider`,
+    body,
+  );
+
+  if (isApiError(res)) {
+    return toMcpResult({
+      error: "MIGRATION_START_FAILED",
+      detail: res,
+      workspace_id: p.workspace_id,
+      from,
+      to: p.to,
+      from_source: fromSource,
+    });
+  }
+
+  return toMcpResult({
+    ok: true,
+    workspace_id: p.workspace_id,
+    from,
+    to: p.to,
+    from_source: fromSource,
+    result: res,
+  });
+}
+
+/**
+ * get_workspace_migration_status — read the latest provider-migration record.
+ *
+ * Read-only. Returns {migration:{state, from_provider, to_provider, detail, …},
+ * terminal}. 404 (surfaced as a structured NOT_FOUND) when the workspace has
+ * never been migrated.
+ */
+export async function handleGetWorkspaceMigrationStatus(args: unknown) {
+  const p = validate(args, GetWorkspaceMigrationStatusSchema);
+
+  if (!cpConfigured()) return toMcpResult(cpNotConfigured("get_workspace_migration_status"));
+
+  const res = await cpCall(
+    "GET",
+    `/api/v1/admin/workspaces/${encodeURIComponent(p.workspace_id)}/migrate-provider`,
+  );
+
+  if (isApiError(res)) {
+    // A 404 here is the meaningful "never migrated" signal — surface it cleanly.
+    if (typeof res === "object" && res !== null && (res as ApiError).status === 404) {
+      return toMcpResult({
+        error: "NOT_FOUND",
+        detail: "no provider-migration record for this workspace (it has never been migrated)",
+        workspace_id: p.workspace_id,
+      });
+    }
+    return toMcpResult({
+      error: "MIGRATION_STATUS_FAILED",
+      detail: res,
+      workspace_id: p.workspace_id,
+    });
+  }
+
+  return toMcpResult({ ok: true, workspace_id: p.workspace_id, ...(res as Record<string, unknown>) });
+}
+
 export function registerCpAdminTools(srv: McpServer) {
   srv.tool(
     "list_orgs",
@@ -407,5 +639,34 @@ export function registerCpAdminTools(srv: McpServer) {
       dry_run: z.boolean().optional().describe("Resolve routing + the request that WOULD be sent, without calling the tenant."),
     },
     handleRecreateWorkspace,
+  );
+  srv.tool(
+    "migrate_workspace_provider",
+    "Management (CP-TIER): migrate a workspace's compute box across clouds (AWS ↔ Hetzner ↔ GCP). Data-safe + ASYNC (~15-20 min): CP snapshots the source's /workspace to R2, provisions the target (which restores on boot), verifies it's healthy, then retires the source (verify-before-destroy + rollback live in CP). `to` is required; `from` is auto-resolved from the workspace when omitted. confirm:true is REQUIRED — a real migration mutates two clouds; the tool refuses without it. `from_instance_id` is required for non-AWS sources. Poll get_workspace_migration_status for progress. Requires CP_ADMIN_API_TOKEN — the Org API Key CANNOT reach the control plane.",
+    {
+      workspace_id: z.string().describe("Workspace UUID to migrate."),
+      to: z.enum(PROVIDERS).describe("Target provider (aws|hetzner|gcp). REQUIRED."),
+      from: z
+        .enum(PROVIDERS)
+        .optional()
+        .describe("Current provider (aws|hetzner|gcp); must differ from `to`. Auto-resolved from the workspace when omitted."),
+      from_instance_id: z
+        .string()
+        .optional()
+        .describe("Current box id to snapshot + retire. REQUIRED for non-AWS (Hetzner/GCP) sources; optional for AWS (resolved from EC2 tags)."),
+      org_id: z.string().optional().describe("Org hint for non-AWS sources (usually unnecessary — CP fills it from tenant_resources)."),
+      runtime: z.string().optional().describe("Runtime hint for non-AWS sources (usually unnecessary — CP fills it from tenant_resources)."),
+      confirm: z
+        .boolean()
+        .optional()
+        .describe("MUST be true to actually migrate (mutates two clouds). Defaults to false; the tool refuses without it."),
+    },
+    handleMigrateWorkspaceProvider,
+  );
+  srv.tool(
+    "get_workspace_migration_status",
+    "Management (CP-TIER): read the latest cross-cloud provider-migration status for a workspace. Read-only. Returns {migration:{state, from_provider, to_provider, detail, …}, terminal}. States: snapshotting → provisioning_target → target_healthy → retiring_source → completed (terminal also: failed, rolled_back). NOT_FOUND when the workspace has never been migrated. Requires CP_ADMIN_API_TOKEN — the Org API Key CANNOT reach the control plane.",
+    { workspace_id: z.string().describe("Workspace UUID to read provider-migration status for.") },
+    handleGetWorkspaceMigrationStatus,
   );
 }
