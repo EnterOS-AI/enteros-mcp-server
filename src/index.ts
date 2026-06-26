@@ -1,1 +1,379 @@
-IyEvdXNyL2Jpbi9lbnYgbm9kZQovKioKICogTW9sZWN1bGUgQUkgTUNQIFNlcnZlcgogKgogKiBFeHBvc2VzIE1vbGVjdWxlIEFJIHBsYXRmb3JtIG9wZXJhdGlvbnMgYXMgTUNQIHRvb2xzIHNvIGFueSBBSSBjb2RpbmcgYWdlbnQKICogKENsYXVkZSBDb2RlLCBDdXJzb3IsIENvZGV4LCBPcGVuQ29kZSkgY2FuIG1hbmFnZSB3b3Jrc3BhY2VzLCBhZ2VudHMsCiAqIHNraWxscywgYW5kIG1lbW9yeS4KICoKICogVHJhbnNwb3J0OiBzdGRpbyAoZm9yIGxvY2FsIENMSSBpbnRlZ3JhdGlvbikKICovCgppbXBvcnQgeyBNY3BTZXJ2ZXIgfSBmcm9tICJAbW9kZWxjb250ZXh0cHJvdG9jb2wvc2RrL3NlcnZlci9tY3AuanMiOwppbXBvcnQgeyBTdGRpb1NlcnZlclRyYW5zcG9ydCB9IGZyb20gIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZGsvc2VydmVyL3N0ZGlvLmpzIjsKCmltcG9ydCB7IFBMQVRGT1JNX1VSTCwgYXBpQ2FsbCwgcGxhdGZvcm1HZXQsIGlzQXBpRXJyb3IgfSBmcm9tICIuL2FwaS5qcyI7CmltcG9ydCB7IGluZm8gYXMgbG9nSW5mbywgd2FybiBhcyBsb2dXYXJuLCBlcnJvciBhcyBsb2dFcnJvciB9IGZyb20gIi4vdXRpbHMvbG9nZ2VyLmpzIjsKaW1wb3J0IHsgcmVnaXN0ZXJXb3Jrc3BhY2VUb29scyB9IGZyb20gIi4vdG9vbHMvd29ya3NwYWNlcy5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyQWdlbnRUb29scyB9IGZyb20gIi4vdG9vbHMvYWdlbnRzLmpzIjsKaW1wb3J0IHsgcmVnaXN0ZXJTZWNyZXRUb29scyB9IGZyb20gIi4vdG9vbHMvc2VjcmV0cy5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyRmlsZVRvb2xzIH0gZnJvbSAiLi90b29scy9maWxlcy5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyTWVtb3J5VG9vbHMgfSBmcm9tICIuL3Rvb2xzL21lbW9yeS5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyUGx1Z2luVG9vbHMgfSBmcm9tICIuL3Rvb2xzL3BsdWdpbnMuanMiOwppbXBvcnQgeyByZWdpc3RlckNoYW5uZWxUb29scyB9IGZyb20gIi4vdG9vbHMvY2hhbm5lbHMuanMiOwppbXBvcnQgeyByZWdpc3RlckRlbGVnYXRpb25Ub29scyB9IGZyb20gIi4vdG9vbHMvZGVsZWdhdGlvbi5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyU2NoZWR1bGVUb29scyB9IGZyb20gIi4vdG9vbHMvc2NoZWR1bGVzLmpzIjsKaW1wb3J0IHsgcmVnaXN0ZXJBcHByb3ZhbFRvb2xzIH0gZnJvbSAiLi90b29scy9hcHByb3ZhbHMuanMiOwppbXBvcnQgeyByZWdpc3RlckRpc2NvdmVyeVRvb2xzIH0gZnJvbSAiLi90b29scy9kaXNjb3ZlcnkuanMiOwppbXBvcnQgeyByZWdpc3RlclJlbW90ZUFnZW50VG9vbHMgfSBmcm9tICIuL3Rvb2xzL3JlbW90ZV9hZ2VudHMuanMiOwppbXBvcnQgeyByZWdpc3Rlcklzc3VlVG9vbHMgfSBmcm9tICIuL3Rvb2xzL2lzc3Vlcy5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyUmVxdWVzdFRvb2xzIH0gZnJvbSAiLi90b29scy9yZXF1ZXN0cy5qcyI7CmltcG9ydCB7IHJlZ2lzdGVyTWFuYWdlbWVudFRvb2xzIH0gZnJvbSAiLi90b29scy9tYW5hZ2VtZW50L2luZGV4LmpzIjsKCi8vIFJlLWV4cG9ydHMgc28gZXhpc3RpbmcgaW1wb3J0ZXJzICh0ZXN0cywgU0RLIGNvbnN1bWVycykga2VlcCB3b3JraW5nLgovLyBFeHBsaWNpdCBuYW1lcyAobm90IGBleHBvcnQgKmApIHNvIHRyZWUtc2hha2VycyBhbmQgVFMgcmVhZGVycyBjYW4gc2VlCi8vIGV4YWN0bHkgd2hpY2ggaGFuZGxlcnMgYXJlIHBhcnQgb2YgdGhlIHB1YmxpYyBzdXJmYWNlLCBhbmQgYSBtaXNzaW5nCi8vIGV4cG9ydCB0cmlnZ2VycyBhIGNvbXBpbGUgZXJyb3IgaW5zdGVhZCBvZiBhIHNpbGVudCB1bmRlZmluZWQgYXQgaW1wb3J0LgpleHBvcnQgeyBQTEFURk9STV9VUkwsIGFwaUNhbGwsIGlzQXBpRXJyb3IsIHBsYXRmb3JtR2V0LCB0b01jcFJlc3VsdCwgdG9NY3BUZXh0IH0gZnJvbSAiLi9hcGkuanMiOwpleHBvcnQgdHlwZSB7IEFwaUVycm9yIH0gZnJvbSAiLi9hcGkuanMiOwovLyBSRkMjNjQwIExheWVyIEIg4oCUIGNoYXQtdXBsb2FkIHJlc29sdXRpb24gZmxvdy4gTUFOREFUT1JZIHN1cmZhY2UgZm9yCi8vIGFueSAvYWN0aXZpdHktcG9sbGluZyBhZGFwdGVyIChjaGFubmVsIHBsdWdpbiwgdGVsZWdyYW0tc3R5bGUKLy8gYWRhcHRlcnMsIGNvZGV4IGJyaWRnZXMpIHRoYXQgY29uc3VtZXMgY2hhdF91cGxvYWRfcmVjZWl2ZSByb3dzLgovLyBTZWUgbW9sZWN1bGVfcnVudGltZS9hMmFfbWNwX3NlcnZlci5weTo6X2J1aWxkX2NoYW5uZWxfaW5zdHJ1Y3Rpb25zCi8vICJVcGxvYWQgcmVzb2x1dGlvbiAoTUFOREFUT1JZLi4uKSIgZm9yIHRoZSBzcGVjLgpleHBvcnQgewogIFVSSUNhY2hlLAogIFVSSV9DQUNIRV9NQVhfRU5UUklFUywKICByZXNvbHZlUGVuZGluZ1VwbG9hZCwKICByZXdyaXRlUGVuZGluZ1VSSXMsCiAgaXNDaGF0VXBsb2FkUmVjZWl2ZVJvdywKfSBmcm9tICIuL2luYm94LXVwbG9hZHMuanMiOwpleHBvcnQgdHlwZSB7CiAgUmVzb2x2ZVVwbG9hZE9wdGlvbnMsCiAgUmVzb2x2ZVVwbG9hZFJlc3VsdCwKfSBmcm9tICIuL2luYm94LXVwbG9hZHMuanMiOwpleHBvcnQgeyBmb3JtYXRUYXJnZXRTdW1tYXJ5LCBwYXJzZVdvcmtzcGFjZVRhcmdldHMgfSBmcm9tICIuL3RhcmdldHMuanMiOwpleHBvcnQgdHlwZSB7IFdvcmtzcGFjZVRhcmdldCB9IGZyb20gIi4vdGFyZ2V0cy5qcyI7CmV4cG9ydCB7CiAgRVhURVJOQUxfV09SS1NQQUNFX01DUF9UT09MUywKICBFWFRFUk5BTF9XT1JLU1BBQ0VfVE9PTF9OQU1FUywKICBleHRlcm5hbFdvcmtzcGFjZVRvb2xCeU5hbWUsCn0gZnJvbSAiLi9leHRlcm5hbF93b3Jrc3BhY2VfdG9vbHMuanMiOwpleHBvcnQgdHlwZSB7IEV4dGVybmFsV29ya3NwYWNlVG9vbCB9IGZyb20gIi4vZXh0ZXJuYWxfd29ya3NwYWNlX3Rvb2xzLmpzIjsKCmV4cG9ydCB7CiAgcmVnaXN0ZXJXb3Jrc3BhY2VUb29scywKICBoYW5kbGVMaXN0V29ya3NwYWNlcywKICBoYW5kbGVDcmVhdGVXb3Jrc3BhY2UsCiAgaGFuZGxlUHJvdmlzaW9uV29ya3NwYWNlLAogIGhhbmRsZUdldFdvcmtzcGFjZSwKICBoYW5kbGVEZWxldGVXb3Jrc3BhY2UsCiAgaGFuZGxlUmVzdGFydFdvcmtzcGFjZSwKICBoYW5kbGVVcGRhdGVXb3Jrc3BhY2UsCiAgaGFuZGxlUGF1c2VXb3Jrc3BhY2UsCiAgaGFuZGxlUmVzdW1lV29ya3NwYWNlLAp9IGZyb20gIi4vdG9vbHMvd29ya3NwYWNlcy5qcyI7CgpleHBvcnQgewogIHJlZ2lzdGVyQWdlbnRUb29scywKICBoYW5kbGVDaGF0V2l0aEFnZW50LAogIGhhbmRsZUFzc2lnbkFnZW50LAogIGhhbmRsZVJlcGxhY2VBZ2VudCwKICBoYW5kbGVSZW1vdmVBZ2VudCwKICBoYW5kbGVNb3ZlQWdlbnQsCiAgaGFuZGxlR2V0TW9kZWwsCn0gZnJvbSAiLi90b29scy9hZ2VudHMuanMiOwoKZXhwb3J0IHsKICByZWdpc3RlclNlY3JldFRvb2xzLAogIGhhbmRsZVNldFNlY3JldCwKICBoYW5kbGVMaXN0U2VjcmV0cywKICBoYW5kbGVEZWxldGVTZWNyZXQsCiAgaGFuZGxlTGlzdEdsb2JhbFNlY3JldHMsCiAgaGFuZGxlU2V0R2xvYmFsU2VjcmV0LAogIGhhbmRsZURlbGV0ZUdsb2JhbFNlY3JldCwKfSBmcm9tICIuL3Rvb2xzL3NlY3JldHMuanMiOwoKZXhwb3J0IHsKICByZWdpc3RlckZpbGVUb29scywKICBoYW5kbGVMaXN0RmlsZXMsCiAgaGFuZGxlUmVhZEZpbGUsCiAgaGFuZGxlV3JpdGVGaWxlLAogIGhhbmRsZURlbGV0ZUZpbGUsCiAgaGFuZGxlUmVwbGFjZUFsbEZpbGVzLAogIGhhbmRsZUdldENvbmZpZywKICBoYW5kbGVVcGRhdGVDb25maWcsCn0gZnJvbSAiLi90b29scy9maWxlcy5qcyI7CgpleHBvcnQgewogIHJlZ2lzdGVyTWVtb3J5VG9vbHMsCiAgaGFuZGxlQ29tbWl0TWVtb3J5LAogIGhhbmRsZVNlYXJjaE1lbW9yeSwKICBoYW5kbGVEZWxldGVNZW1vcnksCiAgaGFuZGxlU2Vzc2lvblNlYXJjaCwKICBoYW5kbGVHZXRTaGFyZWRDb250ZXh0LAogIGhhbmRsZVNldEtWLAogIGhhbmRsZUdldEtWLAogIGhhbmRsZUxpc3RLViwKICBoYW5kbGVEZWxldGVLViwKfSBmcm9tICIuL3Rvb2xzL21lbW9yeS5qcyI7CgpleHBvcnQgewogIHJlZ2lzdGVyUGx1Z2luVG9vbHMsCiAgaGFuZGxlTGlzdFBsdWdpblJlZ2lzdHJ5LAogIGhhbmRsZUxpc3RJbnN0YWxsZWRQbHVnaW5zLAogIGhhbmRsZUluc3RhbGxQbHVnaW4sCiAgaGFuZGxlVW5pbnN0YWxsUGx1Z2luLAogIGhhbmRsZUxpc3RQbHVnaW5Tb3VyY2VzLAogIGhhbmRsZUxpc3RBdmFpbGFibGVQbHVnaW5zLAogIGhhbmRsZUNoZWNrUGx1Z2luQ29tcGF0aWJpbGl0eSwKfSBmcm9tICIuL3Rvb2xzL3BsdWdpbnMuanMiOwoKZXhwb3J0IHsKICByZWdpc3RlckNoYW5uZWxUb29scywKICBoYW5kbGVMaXN0Q2hhbm5lbEFkYXB0ZXJzLAogIGhhbmRsZUxpc3RDaGFubmVscywKICBoYW5kbGVBZGRDaGFubmVsLAogIGhhbmRsZVVwZGF0ZUNoYW5uZWwsCiAgaGFuZGxlUmVtb3ZlQ2hhbm5lbCwKICBoYW5kbGVTZW5kQ2hhbm5lbE1lc3NhZ2UsCiAgaGFuZGxlVGVzdENoYW5uZWwsCiAgaGFuZGxlRGlzY292ZXJDaGFubmVsQ2hhdHMsCn0gZnJvbSAiLi90b29scy9jaGFubmVscy5qcyI7CgpleHBvcnQgewogIHJlZ2lzdGVyRGVsZWdhdGlvblRvb2xzLAogIGhhbmRsZUFzeW5jRGVsZWdhdGUsCiAgaGFuZGxlQ2hlY2tEZWxlZ2F0aW9ucywKICBoYW5kbGVSZWNvcmREZWxlZ2F0aW9uLAogIGhhbmRsZVVwZGF0ZURlbGVnYXRpb25TdGF0dXMsCiAgaGFuZGxlUmVwb3J0QWN0aXZpdHksCiAgaGFuZGxlTGlzdEFjdGl2aXR5LAogIGhhbmRsZU5vdGlmeVVzZXIsCiAgaGFuZGxlTGlzdFRyYWNlcywKfSBmcm9tICIuL3Rvb2xzL2RlbGVnYXRpb24uanMiOwoKZXhwb3J0IHsKICByZWdpc3RlclNjaGVkdWxlVG9vbHMsCiAgaGFuZGxlTGlzdFNjaGVkdWxlcywKICBoYW5kbGVDcmVhdGVTY2hlZHVsZSwKICBoYW5kbGVVcGRhdGVTY2hlZHVsZSwKICBoYW5kbGVEZWxldGVTY2hlZHVsZSwKICBoYW5kbGVSdW5TY2hlZHVsZSwKICBoYW5kbGVHZXRTY2hlZHVsZUhpc3RvcnksCn0gZnJvbSAiLi90b29scy9zY2hlZHVsZXMuanMiOwoKZXhwb3J0IHsKICByZWdpc3RlckFwcHJvdmFsVG9vbHMsCiAgaGFuZGxlTGlzdFBlbmRpbmdBcHByb3ZhbHMsCiAgaGFuZGxlRGVjaWRlQXBwcm92YWwsCiAgaGFuZGxlQ3JlYXRlQXBwcm92YWwsCiAgaGFuZGxlR2V0V29ya3NwYWNlQXBwcm92YWxzLAp9IGZyb20gIi4vdG9vbHMvYXBwcm92YWxzLmpzIjsKCmV4cG9ydCB7CiAgcmVnaXN0ZXJEaXNjb3ZlcnlUb29scywKICBoYW5kbGVMaXN0UGVlcnMsCiAgaGFuZGxlRGlzY292ZXJXb3Jrc3BhY2UsCiAgaGFuZGxlQ2hlY2tBY2Nlc3MsCiAgaGFuZGxlTGlzdEV2ZW50cywKICBoYW5kbGVMaXN0VGVtcGxhdGVzLAogIGhhbmRsZUxpc3RPcmdUZW1wbGF0ZXMsCiAgaGFuZGxlSW1wb3J0T3JnLAogIGhhbmRsZUltcG9ydFRlbXBsYXRlLAogIGhhbmRsZUV4cG9ydEJ1bmRsZSwKICBoYW5kbGVJbXBvcnRCdW5kbGUsCiAgaGFuZGxlR2V0Vmlld3BvcnQsCiAgaGFuZGxlU2V0Vmlld3BvcnQsCiAgaGFuZGxlRXhwYW5kVGVhbSwKICBoYW5kbGVDb2xsYXBzZVRlYW0sCn0gZnJvbSAiLi90b29scy9kaXNjb3ZlcnkuanMiOwoKZXhwb3J0IHsKICByZWdpc3RlclJlbW90ZUFnZW50VG9vbHMsCiAgaGFuZGxlTGlzdFJlbW90ZUFnZW50cywKICBoYW5kbGVHZXRSZW1vdGVBZ2VudFN0YXRlLAogIGhhbmRsZUdldFJlbW90ZUFnZW50U2V0dXBDb21tYW5kLAogIGhhbmRsZUNoZWNrUmVtb3RlQWdlbnRGcmVzaG5lc3MsCn0gZnJvbSAiLi90b29scy9yZW1vdGVfYWdlbnRzLmpzIjsKCi8vIE1hbmFnZW1lbnQgcmVnaXN0cnkg4oCUIHRoZSBjcm9zcy1vcmcgLyBvcmctbGlmZWN5Y2xlIG1hbmFnZW1lbnQgc3VyZmFjZQovLyAoT3JnIEFQSSBLZXksIHRlbmFudCBob3N0KS4gRW5hYmxlZCBieSBNT0xFQ1VMRV9NQ1BfTU9ERT1tYW5hZ2VtZW50OyBzZWUKLy8gY3JlYXRlU2VydmVyKCkgYW5kIHRvb2xzL21hbmFnZW1lbnQvLiBFeHBvcnRlZCBmb3IgdGVzdHMgKyBTREsgY29uc3VtZXJzLgovLyBOb3RlOiBoYW5kbGVQcm92aXNpb25Xb3Jrc3BhY2UgKyBoYW5kbGVMaXN0UGVuZGluZ0FwcHJvdmFscyBhcmUgTk9UCi8vIHJlLWV4cG9ydGVkIGhlcmUg4oCUIHRob3NlIGlkZW50aWZpZXJzIGFyZSBhbHJlYWR5IG93bmVkIGJ5IHRoZSBsZWdhY3kKLy8gd29ya3NwYWNlcy9hcHByb3ZhbHMgZXhwb3J0IGJsb2NrcyBhYm92ZS4gVGhlIG1hbmFnZW1lbnQgdmFyaWFudHMgYXJlCi8vIHJlYWNoYWJsZSB2aWEgdGhlICIuL3Rvb2xzL21hbmFnZW1lbnQvaW5kZXguanMiIG1vZHVsZSBwYXRoIGFuZCBhcmUKLy8gd2lyZWQgaW50byB0aGUgc2VydmVyIHRocm91Z2ggcmVnaXN0ZXJNYW5hZ2VtZW50VG9vbHMuCmV4cG9ydCB7CiAgcmVnaXN0ZXJNYW5hZ2VtZW50VG9vbHMsCiAgaGFuZGxlRGVwcm92aXNpb25Xb3Jrc3BhY2UsCiAgaGFuZGxlU2V0V29ya3NwYWNlU2VjcmV0LAogIGhhbmRsZUxpc3RXb3Jrc3BhY2VTZWNyZXRzLAogIGhhbmRsZURlbGV0ZVdvcmtzcGFjZVNlY3JldCwKICBoYW5kbGVTZXRPcmdTZWNyZXQsCiAgaGFuZGxlTGlzdE9yZ1NlY3JldHMsCiAgaGFuZGxlRGVsZXRlT3JnU2VjcmV0LAogIGhhbmRsZVNldFdvcmtzcGFjZUJ1ZGdldCwKICBoYW5kbGVTZXRMbG1CaWxsaW5nTW9kZSwKICBoYW5kbGVDcmVhdGVPcmdGcm9tVGVtcGxhdGUsCiAgaGFuZGxlTWludE9yZ1Rva2VuLAogIGhhbmRsZUxpc3RPcmdUb2tlbnMsCiAgaGFuZGxlUmV2b2tlT3JnVG9rZW4sCiAgaGFuZGxlTWludFdvcmtzcGFjZVRva2VuLAogIGhhbmRsZUdldE9yZ1BsdWdpbkFsbG93bGlzdCwKICBoYW5kbGVTZXRPcmdQbHVnaW5BbGxvd2xpc3QsCn0gZnJvbSAiLi90b29scy9tYW5hZ2VtZW50L2luZGV4LmpzIjsKZXhwb3J0IHsKICByZWdpc3Rlcklzc3VlVG9vbHMsCiAgaGFuZGxlQ3JlYXRlSXNzdWUsCiAgYnVpbGRJc3N1ZUJvZHksCiAgZGVyaXZlTGFiZWxOYW1lcywKICBnaXRlYUFwaVVybCwKICBkZWZhdWx0SXNzdWVSZXBvLAp9IGZyb20gIi4vdG9vbHMvaXNzdWVzLmpzIjsKZXhwb3J0IHsKICByZWdpc3RlclJlcXVlc3RUb29scywKICBoYW5kbGVDcmVhdGVSZXF1ZXN0LAogIGhhbmRsZUxpc3RJbmJveCwKICBoYW5kbGVDaGVja1JlcXVlc3RzLAogIGhhbmRsZUdldFJlcXVlc3QsCiAgaGFuZGxlUmVzcG9uZFJlcXVlc3QsCiAgaGFuZGxlQWRkUmVxdWVzdE1lc3NhZ2UsCiAgaGFuZGxlQ2FuY2VsUmVxdWVzdCwKfSBmcm9tICIuL3Rvb2xzL3JlcXVlc3RzLmpzIjsKZXhwb3J0IHsgbWdtdENhbGwsIG1nbXRHZXQsIG1hbmFnZW1lbnRVcmwgfSBmcm9tICIuL3Rvb2xzL21hbmFnZW1lbnQvY2xpZW50LmpzIjsKZXhwb3J0IHsgcmVnaXN0ZXJDcEFkbWluVG9vbHMsIGhhbmRsZUxpc3RPcmdzLCBoYW5kbGVHZXRPcmcsIGNwVXJsLCBjcENvbmZpZ3VyZWQgfSBmcm9tICIuL3Rvb2xzL21hbmFnZW1lbnQvY3BfYWRtaW4uanMiOwoKLyoqCiAqIFJldHVybnMgdHJ1ZSB3aGVuIHRoZSBzZXJ2ZXIgc2hvdWxkIHJ1biBhcyB0aGUgTUFOQUdFTUVOVCBzZXJ2ZXIgKHRoZQogKiBjcm9zcy1vcmcgLyBvcmctbGlmZWN5Y2xlIHN1cmZhY2UpIHJhdGhlciB0aGFuIHRoZSBsZWdhY3kgc2luZ2xlLXRlbmFudAogKiB3b3Jrc3BhY2Utb3BzIHN1cmZhY2UuIERyaXZlbiBieSBNT0xFQ1VMRV9NQ1BfTU9ERT1tYW5hZ2VtZW50LgogKgogKiBUaGUgdHdvIHJlZ2lzdHJpZXMgYXJlIG11dHVhbGx5IGV4Y2x1c2l2ZSBpbiBvbmUgc2VydmVyIGluc3RhbmNlIGJlY2F1c2UKICogc2V2ZXJhbCB0b29sIG5hbWVzIG92ZXJsYXAgKGxpc3Rfd29ya3NwYWNlcywgZ2V0X3dvcmtzcGFjZSwgcmVzdGFydC9wYXVzZS8KICogcmVzdW1lX3dvcmtzcGFjZSkgYW5kIHRoZSBNQ1AgU0RLIHRocm93cyBvbiBkdXBsaWNhdGUgdG9vbCBuYW1lcy4gVGhlCiAqIG1hbmFnZW1lbnQgcmVnaXN0cnkgaXMgdGhlIFNBTUUgY29kZWJhc2UgKyBjb252ZW50aW9ucywgbm90IGEgZm9yayDigJQgaXQncwogKiBhIGRpc3RpbmN0IG1vZGUgb2YgdGhpcyBvbmUgc2VydmVyIChTU09UKS4KICovCmV4cG9ydCBmdW5jdGlvbiBpc01hbmFnZW1lbnRNb2RlKCk6IGJvb2xlYW4gewogIHJldHVybiAocHJvY2Vzcy5lbnYuTU9MRUNVTEVfTUNQX01PREUgfHwgIiIpLnRvTG93ZXJDYXNlKCkgPT09ICJtYW5hZ2VtZW50IjsKfQoKZXhwb3J0IGZ1bmN0aW9uIGNyZWF0ZVNlcnZlcigpIHsKICBjb25zdCBzcnYgPSBuZXcgTWNwU2VydmVyKHsKICAgIG5hbWU6IGlzTWFuYWdlbWVudE1vZGUoKSA/ICJtb2xlY3VsZS1wbGF0Zm9ybSIgOiAibW9sZWN1bGUtYTJhIiwKICAgIHZlcnNpb246ICIxLjAuMCIsCiAgfSk7CgogIGlmIChpc01hbmFnZW1lbnRNb2RlKCkpIHsKICAgIC8vIE1hbmFnZW1lbnQgcmVnaXN0cnkg4oCUIE9yZyBBUEkgS2V5LCB0ZW5hbnQgaG9zdC4gQ1AtdGllciB0b29scwogICAgLy8gKGxpc3Rfb3Jncy9nZXRfb3JnKSBhcmUgcmVnaXN0ZXJlZCBieSByZWdpc3Rlck1hbmFnZW1lbnRUb29scyB2aWEgdGhlCiAgICAvLyBzZXBhcmF0ZSBjcF9hZG1pbiBtb2R1bGUgYW5kIGdhdGVkIG9uIENQX0FETUlOX0FQSV9UT0tFTi4KICAgIHJlZ2lzdGVyTWFuYWdlbWVudFRvb2xzKHNydik7CiAgICAvLyBJc3N1ZSBmaWxpbmcgaXMgdXNlZnVsIGZyb20gQk9USCBzdXJmYWNlcyAoYW4gb3BlcmF0b3Igb24gdGhlIG1hbmFnZW1lbnQKICAgIC8vIGhvc3QgYW5kIGFuIGFnZW50IG9uIHRoZSB3b3Jrc3BhY2Ugc3VyZmFjZSBib3RoIG9ic2VydmUgYnVncyB3b3J0aAogICAgLy8gdHJhY2tpbmcpLiBUaGUgdG9vbCBuYW1lIGlzIHVuaXF1ZSwgc28gaXQgaXMgc2FmZSBpbiBib3RoIHJlZ2lzdHJpZXMuCiAgICByZWdpc3Rlcklzc3VlVG9vbHMoc3J2KTsKICAgIC8vIFVuaWZpZWQgcmVxdWVzdHMvaW5ib3ggdG9vbHMgKFJGQyBQMikg4oCUIHJlZ2lzdGVyZWQgaW4gQk9USCBtb2Rlcywgc2FtZQogICAgLy8gYXMgY3JlYXRlX2lzc3VlOiBhbiBhZ2VudCBvbiBlaXRoZXIgc3VyZmFjZSBjYW4gcmFpc2UvYW5zd2VyIHJlcXVlc3RzLgogICAgcmVnaXN0ZXJSZXF1ZXN0VG9vbHMoc3J2KTsKICAgIHJldHVybiBzcnY7CiAgfQoKICByZWdpc3RlcldvcmtzcGFjZVRvb2xzKHNydik7CiAgcmVnaXN0ZXJBZ2VudFRvb2xzKHNydik7CiAgcmVnaXN0ZXJTZWNyZXRUb29scyhzcnYpOwogIHJlZ2lzdGVyRmlsZVRvb2xzKHNydik7CiAgcmVnaXN0ZXJNZW1vcnlUb29scyhzcnYpOwogIHJlZ2lzdGVyUGx1Z2luVG9vbHMoc3J2KTsKICByZWdpc3RlckNoYW5uZWxUb29scyhzcnYpOwogIHJlZ2lzdGVyRGVsZWdhdGlvblRvb2xzKHNydik7CiAgcmVnaXN0ZXJTY2hlZHVsZVRvb2xzKHNydik7CiAgcmVnaXN0ZXJBcHByb3ZhbFRvb2xzKHNydik7CiAgcmVnaXN0ZXJEaXNjb3ZlcnlUb29scyhzcnYpOwogIHJlZ2lzdGVyUmVtb3RlQWdlbnRUb29scyhzcnYpOwogIHJlZ2lzdGVySXNzdWVUb29scyhzcnYpOwogIHJlZ2lzdGVyUmVxdWVzdFRvb2xzKHNydik7CgogIHJldHVybiBzcnY7Cn0KCmFzeW5jIGZ1bmN0aW9uIG1haW4oKSB7CiAgLy8gVmFsaWRhdGUgcGxhdGZvcm0gY29ubmVjdGl2aXR5IG9uIHN0YXJ0dXAKICB0cnkgewogICAgY29uc3QgcmVzID0gYXdhaXQgZmV0Y2goYCR7UExBVEZPUk1fVVJMfS9oZWFsdGhgKTsKICAgIGlmIChyZXMub2spIHsKICAgICAgbG9nSW5mbygiTW9sZWN1bGUgQUkgcGxhdGZvcm0gY29ubmVjdGVkIiwgeyBwbGF0Zm9ybVVybDogUExBVEZPUk1fVVJMIH0pOwogICAgfSBlbHNlIHsKICAgICAgbG9nV2FybihgTW9sZWN1bGUgQUkgcGxhdGZvcm0gYXQgJHtQTEFURk9STV9VUkx9IHJldHVybmVkICR7cmVzLnN0YXR1c30uIFRvb2xzIG1heSBmYWlsLmAsIHsKICAgICAgICBwbGF0Zm9ybVVybDogUExBVEZPUk1fVVJMLAogICAgICAgIHN0YXR1czogcmVzLnN0YXR1cywKICAgICAgfSk7CiAgICB9CiAgfSBjYXRjaCAoZXJyKSB7CiAgICBsb2dXYXJuKGBDYW5ub3QgcmVhY2ggTW9sZWN1bGUgQUkgcGxhdGZvcm0gYXQgJHtQTEFURk9STV9VUkx9LiBTdGFydCBpdCB3aXRoOiBjZCBwbGF0Zm9ybSAmJiBnbyBydW4gLi9jbWQvc2VydmVyYCwgewogICAgICBwbGF0Zm9ybVVybDogUExBVEZPUk1fVVJMLAogICAgfSk7CiAgfQoKICAvLyBBdXRoIHByZWZsaWdodCAoaXNzdWUgIzM2KS4gSWYgTU9MRUNVTEVfQVBJX0tFWSBpcyBzZXQsIGZpcmUgb25lIGNoZWFwCiAgLy8gYXV0aC1nYXRlZCBHRVQgc28gYSByZWplY3RlZCBrZXkgaXMgc3VyZmFjZWQgTE9VRExZIGF0IHN0YXJ0dXAgcmF0aGVyIHRoYW4KICAvLyBzaWxlbnRseSA0MDEtaW5nIG9uIGV2ZXJ5IHRvb2wgY2FsbC4gV2UgcmV1c2UgdGhlIGRpc2NvdmVyeSBgL3RlbXBsYXRlc2AKICAvLyBwYXRoIChzYW1lIGVuZHBvaW50IGFzIHRoZSBsaXN0X3RlbXBsYXRlcyB0b29sKS4gV2UgbmV2ZXIgY3Jhc2ggb24gYSBiYWQKICAvLyBrZXkg4oCUIHRoZSBzZXJ2ZXIgc3RpbGwgc3RhcnRzIChlLmcuIHNvIGxvY2FsaG9zdCBuby1hdXRoIHRvb2xzIHdvcmspLgogIGlmIChwcm9jZXNzLmVudi5NT0xFQ1VMRV9BUElfS0VZICYmIHByb2Nlc3MuZW52Lk1PTEVDVUxFX0FQSV9LRVkubGVuZ3RoID4gMCkgewogICAgdHJ5IHsKICAgICAgY29uc3QgcmVzID0gYXdhaXQgcGxhdGZvcm1HZXQoIi90ZW1wbGF0ZXMiKTsKICAgICAgaWYgKGlzQXBpRXJyb3IocmVzKSkgewogICAgICAgIC8vIHBsYXRmb3JtR2V0IHN0YW1wcyBIVFRQIGVycm9ycyBhcyBgZXJyb3I6ICJIVFRQIDxjb2RlPiJgLgogICAgICAgIGNvbnN0IG0gPSAvSFRUUCAoXGQrKS8uZXhlYyhyZXMuZXJyb3IpOwogICAgICAgIGNvbnN0IGNvZGUgPSBtID8gTnVtYmVyKG1bMV0pIDogdW5kZWZpbmVkOwogICAgICAgIGlmIChjb2RlID09PSA0MDEgfHwgY29kZSA9PT0gNDAzKSB7CiAgICAgICAgICAvLyBlc2xpbnQtZGlzYWJsZS1uZXh0LWxpbmUgbm8tY29uc29sZQogICAgICAgICAgY29uc29sZS5lcnJvcigKICAgICAgICAgICAgYEFVVEhfRVJST1I6IE1PTEVDVUxFX0FQSV9LRVkgcmVqZWN0ZWQgYnkgJHtQTEFURk9STV9VUkx9IChIVFRQICR7Y29kZX0pYCwKICAgICAgICAgICk7CiAgICAgICAgfQogICAgICAgIC8vIE90aGVyIGVycm9ycyAocGxhdGZvcm0gdW5yZWFjaGFibGUsIDV4eCwgZXRjLikgYXJlIGFscmVhZHkgbG9nZ2VkIGJ5CiAgICAgICAgLy8gdGhlIGhlbHBlciAvIGhlYWx0aCBjaGVjayBhYm92ZTsgdGhlIHByZWZsaWdodCBvbmx5IG93bnMgYXV0aC4KICAgICAgfSBlbHNlIHsKICAgICAgICBsb2dJbmZvKCJNT0xFQ1VMRV9BUElfS0VZIGFjY2VwdGVkIGJ5IHBsYXRmb3JtIiwgeyBwbGF0Zm9ybVVybDogUExBVEZPUk1fVVJMIH0pOwogICAgICB9CiAgICB9IGNhdGNoIChlcnIpIHsKICAgICAgLy8gUHJlZmxpZ2h0IG11c3QgbmV2ZXIgY3Jhc2ggc3RhcnR1cC4KICAgICAgbG9nV2FybigiQXV0aCBwcmVmbGlnaHQgZmFpbGVkIHRvIGNvbXBsZXRlIChjb250aW51aW5nIHN0YXJ0dXApIiwgewogICAgICAgIHBsYXRmb3JtVXJsOiBQTEFURk9STV9VUkwsCiAgICAgIH0pOwogICAgfQogIH0gZWxzZSB7CiAgICBsb2dJbmZvKAogICAgICBgTU9MRUNVTEVfQVBJX0tFWSBub3Qgc2V0IOKAlCBydW5uaW5nIHVuYXV0aGVudGljYXRlZCAoZGV2IC8gbm8tYXV0aCBsb2NhbGhvc3QpLiBTZXQgTU9MRUNVTEVfQVBJX0tFWSB0byBhdXRoZW50aWNhdGUgYWdhaW5zdCAke1BMQVRGT1JNX1VSTH0uYCwKICAgICAgeyBwbGF0Zm9ybVVybDogUExBVEZPUk1fVVJMIH0sCiAgICApOwogIH0KCiAgY29uc3Qgc2VydmVyID0gY3JlYXRlU2VydmVyKCk7CiAgY29uc3QgdHJhbnNwb3J0ID0gbmV3IFN0ZGlvU2VydmVyVHJhbnNwb3J0KCk7CiAgYXdhaXQgc2VydmVyLmNvbm5lY3QodHJhbnNwb3J0KTsKICBpZiAoaXNNYW5hZ2VtZW50TW9kZSgpKSB7CiAgICBsb2dJbmZvKCJNb2xlY3VsZSBBSSBNQU5BR0VNRU5UIE1DUCBzZXJ2ZXIgcnVubmluZyBvbiBzdGRpbyAoT3JnIEFQSSBLZXksIHRlbmFudCBob3N0KSIsIHsKICAgICAgdHJhbnNwb3J0OiAic3RkaW8iLAogICAgICBtb2RlOiAibWFuYWdlbWVudCIsCiAgICB9KTsKICB9IGVsc2UgewogICAgbG9nSW5mbygiTW9sZWN1bGUgQUkgTUNQIHNlcnZlciBydW5uaW5nIG9uIHN0ZGlvICg5NiB0b29scyBhdmFpbGFibGUpIiwgeyB0cmFuc3BvcnQ6ICJzdGRpbyIsIHRvb2xDb3VudDogOTYgfSk7CiAgfQp9CgovLyBPbmx5IGF1dG8tc3RhcnQgd2hlbiBydW4gZGlyZWN0bHkgKG5vdCB3aGVuIGltcG9ydGVkKS4gbWFpbigpIGRvZXMgSS9PCi8vIChwbGF0Zm9ybSBoZWFsdGggZmV0Y2ggKyBhdXRoIHByZWZsaWdodCArIHN0ZGlvIGNvbm5lY3QpLCBzbyBpdCBtdXN0IE5PVCBydW4KLy8gd2hlbiBhbm90aGVyIG1vZHVsZSBpbXBvcnRzIGNyZWF0ZVNlcnZlciBmb3IgZW51bWVyYXRpb246Ci8vICAgLSBKRVNUX1dPUktFUl9JRCAgaXMgc2V0IGF1dG9tYXRpY2FsbHkgYnkgSmVzdCBpbiBldmVyeSB3b3JrZXIgcHJvY2Vzcy4KLy8gICAtIE1PTEVDVUxFX01DUF9TVVBQUkVTU19BVVRPU1RBUlQgaXMgc2V0IGJ5IHRoZSBwcm9kdWNlci1lbWl0dGVkIHRvb2wKLy8gICAgIG1hbmlmZXN0IGVtaXR0ZXIgKG1hbmlmZXN0LWVtaXQudHMpIGJlZm9yZSBpdCBkeW5hbWljYWxseSBpbXBvcnRzIHRoaXMKLy8gICAgIG1vZHVsZSB0byBkdW1wIHRoZSByZWdpc3RlcmVkIHRvb2xzLiAoRW52LCBub3QgaW1wb3J0Lm1ldGEsIHNvIHRoaXMgc3RheXMKLy8gICAgIHZhbGlkIHVuZGVyIHRoZSBDb21tb25KUyB0cy1qZXN0IHRyYW5zZm9ybSB0aGUgdGVzdCBzdWl0ZSB1c2VzLikKaWYgKCFwcm9jZXNzLmVudi5KRVNUX1dPUktFUl9JRCAmJiAhcHJvY2Vzcy5lbnYuTU9MRUNVTEVfTUNQX1NVUFBSRVNTX0FVVE9TVEFSVCkgewogIG1haW4oKS5jYXRjaCgoZXJyKSA9PiBsb2dFcnJvcihlcnIsICJNQ1Agc2VydmVyIG1haW4oKSB0aHJldyB1bmV4cGVjdGVkbHkiKSk7Cn0K
+#!/usr/bin/env node
+/**
+ * Molecule AI MCP Server
+ *
+ * Exposes Molecule AI platform operations as MCP tools so any AI coding agent
+ * (Claude Code, Cursor, Codex, OpenCode) can manage workspaces, agents,
+ * skills, and memory.
+ *
+ * Transport: stdio (for local CLI integration)
+ */
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { PLATFORM_URL, apiCall, platformGet, isApiError } from "./api.js";
+import { info as logInfo, warn as logWarn, error as logError } from "./utils/logger.js";
+import { registerWorkspaceTools } from "./tools/workspaces.js";
+import { registerAgentTools } from "./tools/agents.js";
+import { registerSecretTools } from "./tools/secrets.js";
+import { registerFileTools } from "./tools/files.js";
+import { registerMemoryTools } from "./tools/memory.js";
+import { registerPluginTools } from "./tools/plugins.js";
+import { registerChannelTools } from "./tools/channels.js";
+import { registerDelegationTools } from "./tools/delegation.js";
+import { registerScheduleTools } from "./tools/schedules.js";
+import { registerApprovalTools } from "./tools/approvals.js";
+import { registerDiscoveryTools } from "./tools/discovery.js";
+import { registerRemoteAgentTools } from "./tools/remote_agents.js";
+import { registerIssueTools } from "./tools/issues.js";
+import { registerRequestTools } from "./tools/requests.js";
+import { registerManagementTools } from "./tools/management/index.js";
+
+// Re-exports so existing importers (tests, SDK consumers) keep working.
+// Explicit names (not `export *`) so tree-shakers and TS readers can see
+// exactly which handlers are part of the public surface, and a missing
+// export triggers a compile error instead of a silent undefined at import.
+export { PLATFORM_URL, apiCall, isApiError, platformGet, toMcpResult, toMcpText } from "./api.js";
+export type { ApiError } from "./api.js";
+// RFC#640 Layer B — chat-upload resolution flow. MANDATORY surface for
+// any /activity-polling adapter (channel plugin, telegram-style
+// adapters, codex bridges) that consumes chat_upload_receive rows.
+// See molecule_runtime/a2a_mcp_server.py::_build_channel_instructions
+// "Upload resolution (MANDATORY...)" for the spec.
+export {
+  URICache,
+  URI_CACHE_MAX_ENTRIES,
+  resolvePendingUpload,
+  rewritePendingURIs,
+  isChatUploadReceiveRow,
+} from "./inbox-uploads.js";
+export type {
+  ResolveUploadOptions,
+  ResolveUploadResult,
+} from "./inbox-uploads.js";
+export { formatTargetSummary, parseWorkspaceTargets } from "./targets.js";
+export type { WorkspaceTarget } from "./targets.js";
+export {
+  EXTERNAL_WORKSPACE_MCP_TOOLS,
+  EXTERNAL_WORKSPACE_TOOL_NAMES,
+  externalWorkspaceToolByName,
+} from "./external_workspace_tools.js";
+export type { ExternalWorkspaceTool } from "./external_workspace_tools.js";
+
+export {
+  registerWorkspaceTools,
+  handleListWorkspaces,
+  handleCreateWorkspace,
+  handleProvisionWorkspace,
+  handleGetWorkspace,
+  handleDeleteWorkspace,
+  handleRestartWorkspace,
+  handleUpdateWorkspace,
+  handlePauseWorkspace,
+  handleResumeWorkspace,
+} from "./tools/workspaces.js";
+
+export {
+  registerAgentTools,
+  handleChatWithAgent,
+  handleAssignAgent,
+  handleReplaceAgent,
+  handleRemoveAgent,
+  handleMoveAgent,
+  handleGetModel,
+} from "./tools/agents.js";
+
+export {
+  registerSecretTools,
+  handleSetSecret,
+  handleListSecrets,
+  handleDeleteSecret,
+  handleListGlobalSecrets,
+  handleSetGlobalSecret,
+  handleDeleteGlobalSecret,
+} from "./tools/secrets.js";
+
+export {
+  registerFileTools,
+  handleListFiles,
+  handleReadFile,
+  handleWriteFile,
+  handleDeleteFile,
+  handleReplaceAllFiles,
+  handleGetConfig,
+  handleUpdateConfig,
+} from "./tools/files.js";
+
+export {
+  registerMemoryTools,
+  handleCommitMemory,
+  handleSearchMemory,
+  handleDeleteMemory,
+  handleSessionSearch,
+  handleGetSharedContext,
+  handleSetKV,
+  handleGetKV,
+  handleListKV,
+  handleDeleteKV,
+} from "./tools/memory.js";
+
+export {
+  registerPluginTools,
+  handleListPluginRegistry,
+  handleListInstalledPlugins,
+  handleInstallPlugin,
+  handleUninstallPlugin,
+  handleListPluginSources,
+  handleListAvailablePlugins,
+  handleCheckPluginCompatibility,
+} from "./tools/plugins.js";
+
+export {
+  registerChannelTools,
+  handleListChannelAdapters,
+  handleListChannels,
+  handleAddChannel,
+  handleUpdateChannel,
+  handleRemoveChannel,
+  handleSendChannelMessage,
+  handleTestChannel,
+  handleDiscoverChannelChats,
+} from "./tools/channels.js";
+
+export {
+  registerDelegationTools,
+  handleAsyncDelegate,
+  handleCheckDelegations,
+  handleRecordDelegation,
+  handleUpdateDelegationStatus,
+  handleReportActivity,
+  handleListActivity,
+  handleNotifyUser,
+  handleListTraces,
+} from "./tools/delegation.js";
+
+export {
+  registerScheduleTools,
+  handleListSchedules,
+  handleCreateSchedule,
+  handleUpdateSchedule,
+  handleDeleteSchedule,
+  handleRunSchedule,
+  handleGetScheduleHistory,
+} from "./tools/schedules.js";
+
+export {
+  registerApprovalTools,
+  handleListPendingApprovals,
+  handleDecideApproval,
+  handleCreateApproval,
+  handleGetWorkspaceApprovals,
+} from "./tools/approvals.js";
+
+export {
+  registerDiscoveryTools,
+  handleListPeers,
+  handleDiscoverWorkspace,
+  handleCheckAccess,
+  handleListEvents,
+  handleListTemplates,
+  handleListOrgTemplates,
+  handleImportOrg,
+  handleImportTemplate,
+  handleExportBundle,
+  handleImportBundle,
+  handleGetViewport,
+  handleSetViewport,
+  handleExpandTeam,
+  handleCollapseTeam,
+} from "./tools/discovery.js";
+
+export {
+  registerRemoteAgentTools,
+  handleListRemoteAgents,
+  handleGetRemoteAgentState,
+  handleGetRemoteAgentSetupCommand,
+  handleCheckRemoteAgentFreshness,
+} from "./tools/remote_agents.js";
+
+// Management registry — the cross-org / org-lifecycle management surface
+// (Org API Key, tenant host). Enabled by MOLECULE_MCP_MODE=management; see
+// createServer() and tools/management/. Exported for tests + SDK consumers.
+// Note: handleProvisionWorkspace + handleListPendingApprovals are NOT
+// re-exported here — those identifiers are already owned by the legacy
+// workspaces/approvals export blocks above. The management variants are
+// reachable via the "./tools/management/index.js" module path and are
+// wired into the server through registerManagementTools.
+export {
+  registerManagementTools,
+  handleDeprovisionWorkspace,
+  handleSetWorkspaceSecret,
+  handleListWorkspaceSecrets,
+  handleDeleteWorkspaceSecret,
+  handleSetOrgSecret,
+  handleListOrgSecrets,
+  handleDeleteOrgSecret,
+  handleSetWorkspaceBudget,
+  handleSetLlmBillingMode,
+  handleCreateOrgFromTemplate,
+  handleMintOrgToken,
+  handleListOrgTokens,
+  handleRevokeOrgToken,
+  handleMintWorkspaceToken,
+  handleGetOrgPluginAllowlist,
+  handleSetOrgPluginAllowlist,
+} from "./tools/management/index.js";
+export {
+  registerIssueTools,
+  handleCreateIssue,
+  buildIssueBody,
+  deriveLabelNames,
+  giteaApiUrl,
+  defaultIssueRepo,
+} from "./tools/issues.js";
+export {
+  registerRequestTools,
+  handleCreateRequest,
+  handleListInbox,
+  handleCheckRequests,
+  handleGetRequest,
+  handleRespondRequest,
+  handleAddRequestMessage,
+  handleCancelRequest,
+} from "./tools/requests.js";
+export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
+export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured } from "./tools/management/cp_admin.js";
+
+/**
+ * Returns true when the server should run as the MANAGEMENT server (the
+ * cross-org / org-lifecycle surface) rather than the legacy single-tenant
+ * workspace-ops surface. Driven by MOLECULE_MCP_MODE=management.
+ *
+ * The two registries are mutually exclusive in one server instance because
+ * several tool names overlap (list_workspaces, get_workspace, restart/pause/
+ * resume_workspace) and the MCP SDK throws on duplicate tool names. The
+ * management registry is the SAME codebase + conventions, not a fork — it's
+ * a distinct mode of this one server (SSOT).
+ */
+export function isManagementMode(): boolean {
+  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
+}
+
+export function createServer() {
+  const srv = new McpServer({
+    name: isManagementMode() ? "molecule-platform" : "molecule-a2a",
+    version: "1.0.0",
+  });
+
+  if (isManagementMode()) {
+    // Management registry — Org API Key, tenant host. CP-tier tools
+    // (list_orgs/get_org) are registered by registerManagementTools via the
+    // separate cp_admin module and gated on CP_ADMIN_API_TOKEN.
+    registerManagementTools(srv);
+    // Issue filing is useful from BOTH surfaces (an operator on the management
+    // host and an agent on the workspace surface both observe bugs worth
+    // tracking). The tool name is unique, so it is safe in both registries.
+    registerIssueTools(srv);
+    // Unified requests/inbox tools (RFC P2) — registered in BOTH modes, same
+    // as create_issue: an agent on either surface can raise/answer requests.
+    registerRequestTools(srv);
+    return srv;
+  }
+
+  registerWorkspaceTools(srv);
+  registerAgentTools(srv);
+  registerSecretTools(srv);
+  registerFileTools(srv);
+  registerMemoryTools(srv);
+  registerPluginTools(srv);
+  registerChannelTools(srv);
+  registerDelegationTools(srv);
+  registerScheduleTools(srv);
+  registerApprovalTools(srv);
+  registerDiscoveryTools(srv);
+  registerRemoteAgentTools(srv);
+  registerIssueTools(srv);
+  registerRequestTools(srv);
+
+  return srv;
+}
+
+async function main() {
+  // Validate platform connectivity on startup
+  try {
+    const res = await fetch(`${PLATFORM_URL}/health`);
+    if (res.ok) {
+      logInfo("Molecule AI platform connected", { platformUrl: PLATFORM_URL });
+    } else {
+      logWarn(`Molecule AI platform at ${PLATFORM_URL} returned ${res.status}. Tools may fail.`, {
+        platformUrl: PLATFORM_URL,
+        status: res.status,
+      });
+    }
+  } catch (err) {
+    logWarn(`Cannot reach Molecule AI platform at ${PLATFORM_URL}. Start it with: cd platform && go run ./cmd/server`, {
+      platformUrl: PLATFORM_URL,
+    });
+  }
+
+  // Auth preflight (issue #36). If MOLECULE_API_KEY is set, fire one cheap
+  // auth-gated GET so a rejected key is surfaced LOUDLY at startup rather than
+  // silently 401-ing on every tool call. We reuse the discovery `/templates`
+  // path (same endpoint as the list_templates tool). We never crash on a bad
+  // key — the server still starts (e.g. so localhost no-auth tools work).
+  if (process.env.MOLECULE_API_KEY && process.env.MOLECULE_API_KEY.length > 0) {
+    try {
+      const res = await platformGet("/templates");
+      if (isApiError(res)) {
+        // platformGet stamps HTTP errors as `error: "HTTP <code>"`.
+        const m = /HTTP (\d+)/.exec(res.error);
+        const code = m ? Number(m[1]) : undefined;
+        if (code === 401 || code === 403) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `AUTH_ERROR: MOLECULE_API_KEY rejected by ${PLATFORM_URL} (HTTP ${code})`,
+          );
+        }
+        // Other errors (platform unreachable, 5xx, etc.) are already logged by
+        // the helper / health check above; the preflight only owns auth.
+      } else {
+        logInfo("MOLECULE_API_KEY accepted by platform", { platformUrl: PLATFORM_URL });
+      }
+    } catch (err) {
+      // Preflight must never crash startup.
+      logWarn("Auth preflight failed to complete (continuing startup)", {
+        platformUrl: PLATFORM_URL,
+      });
+    }
+  } else {
+    logInfo(
+      `MOLECULE_API_KEY not set — running unauthenticated (dev / no-auth localhost). Set MOLECULE_API_KEY to authenticate against ${PLATFORM_URL}.`,
+      { platformUrl: PLATFORM_URL },
+    );
+  }
+
+  const server = createServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  if (isManagementMode()) {
+    logInfo("Molecule AI MANAGEMENT MCP server running on stdio (Org API Key, tenant host)", {
+      transport: "stdio",
+      mode: "management",
+    });
+  } else {
+    logInfo("Molecule AI MCP server running on stdio (96 tools available)", { transport: "stdio", toolCount: 96 });
+  }
+}
+
+// Only auto-start when run directly (not when imported). main() does I/O
+// (platform health fetch + auth preflight + stdio connect), so it must NOT run
+// when another module imports createServer for enumeration:
+//   - JEST_WORKER_ID  is set automatically by Jest in every worker process.
+//   - MOLECULE_MCP_SUPPRESS_AUTOSTART is set by the producer-emitted tool
+//     manifest emitter (manifest-emit.ts) before it dynamically imports this
+//     module to dump the registered tools. (Env, not import.meta, so this stays
+//     valid under the CommonJS ts-jest transform the test suite uses.)
+if (!process.env.JEST_WORKER_ID && !process.env.MOLECULE_MCP_SUPPRESS_AUTOSTART) {
+  main().catch((err) => logError(err, "MCP server main() threw unexpectedly"));
+}
