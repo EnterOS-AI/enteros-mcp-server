@@ -24,3 +24,51 @@ jobs:
 
       - name: Test
         run: npm test
+
+  # Publish-provenance gate (ADVISORY — continue-on-error, does NOT block merge).
+  #
+  # Asserts every PUBLISHED npm version of @molecule-ai/mcp-server has a
+  # matching v<version> git tag. Detects OUT-OF-BAND publishes: the Gitea npm
+  # registry accepts `npm publish` from any write:package token with no
+  # coupling to a git tag / CI run / review, so a local publish can skip the
+  # tag-triggered publish.yml entirely (1.6.0 and 1.6.1 already did this).
+  #
+  # ADVISORY-FIRST RATIONALE: continue-on-error means a red here does NOT block
+  # merges. The merge-queue reads required contexts from BRANCH PROTECTION
+  # (status_check_contexts), not job names, and ignores non-required
+  # continue-on-error jobs -- so this job cannot gate a merge today. This is
+  # deliberate: 1.6.0/1.6.1 are currently untagged, so a *required* check would
+  # immediately red main. The gate allowlists 1.6.0/1.6.1 (see
+  # provenance-gate.sh) so it is GREEN at introduction.
+  #
+  # PROMOTE TO REQUIRED only AFTER both land:
+  #   (1) the 1.6.x cleanup (retro-tag v1.6.0/v1.6.1 + empty the allowlist, OR
+  #       unpublish the out-of-band 1.6.x), and
+  #   (2) the publish-token lockdown (OWNER: revoke every non-CI write:package
+  #       token on org molecule-ai so the only publisher is CI's
+  #       MOL_PACKAGE_TOKEN at Infisical /ci/gitea-pypi-publisher).
+  # Then remove continue-on-error here and add "CI / provenance" to branch
+  # protection's status_check_contexts (owner-only BP edit).
+  provenance:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the full v* tag history locally for the provenance comparison.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Publish-provenance gate (advisory)
+        env:
+          # OPTIONAL read:package token for the Gitea npm registry. The
+          # packument endpoint is currently public, so the gate works without
+          # it, but wiring a read:package CI secret here makes the gate robust
+          # if the registry later enforces read:package. Do NOT use a
+          # write:package token. Expected secret name:
+          #   PROVENANCE_READ_PACKAGE_TOKEN  (read:package on org molecule-ai)
+          PROVENANCE_REGISTRY_TOKEN: ${{ secrets.PROVENANCE_READ_PACKAGE_TOKEN }}
+        run: bash .gitea/scripts/provenance-gate.sh
+
+      - name: Provenance-gate self-test
+        run: bash .gitea/scripts/tests/test_provenance_gate.sh
