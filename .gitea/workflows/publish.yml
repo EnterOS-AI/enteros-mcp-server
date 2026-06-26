@@ -1,1 +1,68 @@
-bmFtZTogUHVibGlzaCB0byBucG0Kb246CiAgcHVzaDoKICAgIHRhZ3M6IFsndionXQpqb2JzOgogIHB1Ymxpc2g6CiAgICBydW5zLW9uOiB1YnVudHUtbGF0ZXN0CiAgICBzdGVwczoKICAgICAgLSB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CiAgICAgIC0gdXNlczogYWN0aW9ucy9zZXR1cC1ub2RlQHY0CiAgICAgICAgd2l0aDoKICAgICAgICAgIG5vZGUtdmVyc2lvbjogJzIwJwogICAgICAtIHJ1bjogbnBtIGluc3RhbGwKICAgICAgIyBidWlsZDptYW5pZmVzdCA9IGB0c2MgJiYgbm9kZSBkaXN0L21hbmlmZXN0LWVtaXQuanNgLCBzbyB0aGUKICAgICAgIyBwcm9kdWNlci1lbWl0dGVkIGRpc3QvbWFuaWZlc3QuanNvbiAocGVyLW1vZGUsIHZlcnNpb25lZCB0b29sIG1hbmlmZXN0LAogICAgICAjIFJGQyAjMzI4NSBQMSkgaXMgZ2VuZXJhdGVkIEJFRk9SRSBgbnBtIHB1Ymxpc2hgIGFuZCBzaGlwcyBpbiB0aGUgbnBtCiAgICAgICMgdGFyYmFsbCAobm8gYGZpbGVzYCBhbGxvd2xpc3QgLyBgLm5wbWlnbm9yZWA7IGV4cG9ydHMgcG9pbnQgaW50byBkaXN0LykuCiAgICAgIC0gcnVuOiBucG0gcnVuIGJ1aWxkOm1hbmlmZXN0CiAgICAgIC0gcnVuOiBucG0gdGVzdAoKICAgICAgIyBLTVMgbWlncmF0aW9uIChSRkM6IEdpdGVhLUFjdGlvbnMtc2VjcmV0cyAtPiBJbmZpc2ljYWwvS01TKSwgcHJvdmVuCiAgICAgICMgIzk3MS8jMzI3NCBwYXR0ZXJuOiBzb3VyY2UgTU9MX1BBQ0tBR0VfVE9LRU4gZnJvbSB0aGUgSW5maXNpY2FsIFNTT1QgdmlhCiAgICAgICMgdGhlIENJIG1hY2hpbmUgaWRlbnRpdHkgaW5zdGVhZCBvZiB0aGUgZHVwbGljYXRlZCBHaXRlYSBBY3Rpb25zIHNlY3JldC4KICAgICAgIyBSdW5zIGluIHRoZSBTQU1FIGpvYiBhcyB0aGUgcHVibGlzaCBjb25zdW1lciBzbyB0aGUgJEdJVEhVQl9FTlYgZXhwb3J0IGlzCiAgICAgICMgdmlzaWJsZSBiZWxvdy4gVGhlIEdpdGVhIHNlY3JldC5NT0xfUEFDS0FHRV9UT0tFTiBpcyBSRVRBSU5FRCBmb3Igbm93OwogICAgICAjIHZhbGlkYXRlLWJlZm9yZS1kZWxldGUgaGFwcGVucyBhZnRlciB0aGlzIG1lcmdlcyBhbmQgYSByZWFsIHJ1biBwcm92ZXMKICAgICAgIyB0aGUgZmV0Y2guIEluZmlzaWNhbCBpcyBub3cgdGhlIEFVVEhPUklUQVRJVkUgc291cmNlIGZvciB0aGlzIHRva2VuLCBzbyBhCiAgICAgICMgYnJva2VuL2VtcHR5LzQwNCBmZXRjaCBIQVJELUZBSUxTIGhlcmUgKGZhaWwtY2xvc2VkKSByYXRoZXIgdGhhbiBsZXR0aW5nCiAgICAgICMgdGhlIHB1Ymxpc2ggc3RlcCBydW4gd2l0aCBhbiBlbXB0eSBhdXRoIHRva2VuLgogICAgICAtIG5hbWU6IEZldGNoIE1PTF9QQUNLQUdFX1RPS0VOIGZyb20gSW5maXNpY2FsIFNTT1QKICAgICAgICBlbnY6CiAgICAgICAgICBJTkZJU0lDQUxfQ0lfQ0xJRU5UX0lEOiAke3sgc2VjcmV0cy5JTkZJU0lDQUxfQ0lfQ0xJRU5UX0lEIH19CiAgICAgICAgICBJTkZJU0lDQUxfQ0lfQ0xJRU5UX1NFQ1JFVDogJHt7IHNlY3JldHMuSU5GSVNJQ0FMX0NJX0NMSUVOVF9TRUNSRVQgfX0KICAgICAgICAgIElORklTSUNBTF9QUk9KRUNUX0lEOiAke3sgc2VjcmV0cy5JTkZJU0lDQUxfQ0lfUFJPSkVDVF9JRCB9fQogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC11byBwaXBlZmFpbAogICAgICAgICAgQkFTRT0iaHR0cHM6Ly9rZXkubW9sZWN1bGVzYWkuYXBwIgogICAgICAgICAgVE9LPSQoY3VybCAtZnNTIC1YIFBPU1QgIiRCQVNFL2FwaS92MS9hdXRoL3VuaXZlcnNhbC1hdXRoL2xvZ2luIiBcCiAgICAgICAgICAgIC1IICdDb250ZW50LVR5cGU6IGFwcGxpY2F0aW9uL2pzb24nIFwKICAgICAgICAgICAgLWQgIntcImNsaWVudElkXCI6XCIkSU5GSVNJQ0FMX0NJX0NMSUVOVF9JRFwiLFwiY2xpZW50U2VjcmV0XCI6XCIkSU5GSVNJQ0FMX0NJX0NMSUVOVF9TRUNSRVRcIn0iIFwKICAgICAgICAgICAgfCBweXRob24zIC1jICdpbXBvcnQgc3lzLGpzb247ZD1qc29uLmxvYWQoc3lzLnN0ZGluKTt2PWQuZ2V0KCJhY2Nlc3NUb2tlbiIpO3ByaW50KHYgaWYgaXNpbnN0YW5jZSh2LHN0cikgYW5kIHYgZWxzZSAiIiknKQogICAgICAgICAgaWYgWyAteiAiJFRPSyIgXTsgdGhlbgogICAgICAgICAgICBlY2hvICJJbmZpc2ljYWwgdW5pdmVyc2FsLWF1dGggbG9naW4gcmV0dXJuZWQgbm8gYWNjZXNzVG9rZW4gLS0gY2Fubm90IGZldGNoIE1PTF9QQUNLQUdFX1RPS0VOOyBmYWlsaW5nIGNsb3NlZCIgPiYyCiAgICAgICAgICAgIGV4aXQgMQogICAgICAgICAgZmkKICAgICAgICAgIHJlYWRfc2VjcmV0KCkgewogICAgICAgICAgICBjdXJsIC1mc1MgIiRCQVNFL2FwaS92My9zZWNyZXRzL3Jhdy8kMT93b3Jrc3BhY2VJZD0kSU5GSVNJQ0FMX1BST0pFQ1RfSUQmZW52aXJvbm1lbnQ9cHJvZCZzZWNyZXRQYXRoPSQyIiBcCiAgICAgICAgICAgICAgLUggIkF1dGhvcml6YXRpb246IEJlYXJlciAkVE9LIiBcCiAgICAgICAgICAgICAgfCBweXRob24zIC1jICdpbXBvcnQgc3lzLGpzb247ZD1qc29uLmxvYWQoc3lzLnN0ZGluKTt2PShkLmdldCgic2VjcmV0Iikgb3Ige30pLmdldCgic2VjcmV0VmFsdWUiKTtwcmludCh2IGlmIGlzaW5zdGFuY2UodixzdHIpIGFuZCB2IGVsc2UgIiIpJwogICAgICAgICAgfQogICAgICAgICAgTU9MX1BBQ0tBR0VfVE9LRU49JChyZWFkX3NlY3JldCBNT0xfUEFDS0FHRV9UT0tFTiAlMkZjaSUyRmdpdGVhLXB5cGktcHVibGlzaGVyKQogICAgICAgICAgaWYgWyAteiAiJE1PTF9QQUNLQUdFX1RPS0VOIiBdOyB0aGVuCiAgICAgICAgICAgIGVjaG8gIkluZmlzaWNhbCByZXR1cm5lZCBlbXB0eSBmb3IgTU9MX1BBQ0tBR0VfVE9LRU4gYXQgL2NpL2dpdGVhLXB5cGktcHVibGlzaGVyIChwcm9kKSAtLSBhdXRob3JpdGF0aXZlIGZldGNoIGZhaWxlZDsgZmFpbGluZyBjbG9zZWQgaW5zdGVhZCBvZiBwdWJsaXNoaW5nIHdpdGggYW4gZW1wdHkgdG9rZW4iID4mMgogICAgICAgICAgICBleGl0IDEKICAgICAgICAgIGZpCiAgICAgICAgICBlY2hvICI6OmFkZC1tYXNrOjokTU9MX1BBQ0tBR0VfVE9LRU4iCiAgICAgICAgICBlY2hvICJNT0xfUEFDS0FHRV9UT0tFTj0kTU9MX1BBQ0tBR0VfVE9LRU4iID4+ICIkR0lUSFVCX0VOViIKICAgICAgICAgIGVjaG8gIk1PTF9QQUNLQUdFX1RPS0VOIGxvYWRlZCBmcm9tIEluZmlzaWNhbCAobm9uLWVtcHR5LCBsZW49JHsjTU9MX1BBQ0tBR0VfVE9LRU59KSIKCiAgICAgIC0gbmFtZTogUHVibGlzaCB0byBHaXRlYSBucG0gcmVnaXN0cnkKICAgICAgICBlbnY6CiAgICAgICAgICAjIENvbnN1bWVkIGZyb20gdGhlIHByb2Nlc3MgZW52aXJvbm1lbnQgKCRHSVRIVUJfRU5WIHdyaXRlIGFib3ZlKSwKICAgICAgICAgICMgcHJvdmVuIG5vbi1lbXB0eSBieSB0aGUgZmFpbC1jbG9zZWQgSW5maXNpY2FsIGZldGNoIHN0ZXAuCiAgICAgICAgICBOT0RFX0FVVEhfVE9LRU46ICcke3sgZW52Lk1PTF9QQUNLQUdFX1RPS0VOIH19JwogICAgICAgIHJ1bjogfAogICAgICAgICAgbnBtIGNvbmZpZyBzZXQgQG1vbGVjdWxlLWFpOnJlZ2lzdHJ5IGh0dHBzOi8vZ2l0Lm1vbGVjdWxlc2FpLmFwcC9hcGkvcGFja2FnZXMvbW9sZWN1bGUtYWkvbnBtLwogICAgICAgICAgbnBtIGNvbmZpZyBzZXQgLy9naXQubW9sZWN1bGVzYWkuYXBwL2FwaS9wYWNrYWdlcy9tb2xlY3VsZS1haS9ucG0vOl9hdXRoVG9rZW4gIiROT0RFX0FVVEhfVE9LRU4iCiAgICAgICAgICBucG0gcHVibGlzaCAtLXJlZ2lzdHJ5IGh0dHBzOi8vZ2l0Lm1vbGVjdWxlc2FpLmFwcC9hcGkvcGFja2FnZXMvbW9sZWN1bGUtYWkvbnBtLwo=
+name: Publish to npm
+on:
+  push:
+    tags: ['v*']
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      # build:manifest = `tsc && node dist/manifest-emit.js`, so the
+      # producer-emitted dist/manifest.json (per-mode, versioned tool manifest,
+      # RFC #3285 P1) is generated BEFORE `npm publish` and ships in the npm
+      # tarball (no `files` allowlist / `.npmignore`; exports point into dist/).
+      - run: npm run build:manifest
+      - run: npm test
+
+      # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven
+      # #971/#3274 pattern: source MOL_PACKAGE_TOKEN from the Infisical SSOT via
+      # the CI machine identity instead of the duplicated Gitea Actions secret.
+      # Runs in the SAME job as the publish consumer so the $GITHUB_ENV export is
+      # visible below. The Gitea secret.MOL_PACKAGE_TOKEN is RETAINED for now;
+      # validate-before-delete happens after this merges and a real run proves
+      # the fetch. Infisical is now the AUTHORITATIVE source for this token, so a
+      # broken/empty/404 fetch HARD-FAILS here (fail-closed) rather than letting
+      # the publish step run with an empty auth token.
+      - name: Fetch MOL_PACKAGE_TOKEN from Infisical SSOT
+        env:
+          INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
+          INFISICAL_CI_CLIENT_SECRET: ${{ secrets.INFISICAL_CI_CLIENT_SECRET }}
+          INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_CI_PROJECT_ID }}
+        run: |
+          set -uo pipefail
+          BASE="https://key.moleculesai.app"
+          TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
+            | python3 -c 'import sys,json;d=json.load(sys.stdin);v=d.get("accessToken");print(v if isinstance(v,str) and v else "")')
+          if [ -z "$TOK" ]; then
+            echo "Infisical universal-auth login returned no accessToken -- cannot fetch MOL_PACKAGE_TOKEN; failing closed" >&2
+            exit 1
+          fi
+          read_secret() {
+            curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
+              -H "Authorization: Bearer $TOK" \
+              | python3 -c 'import sys,json;d=json.load(sys.stdin);v=(d.get("secret") or {}).get("secretValue");print(v if isinstance(v,str) and v else "")'
+          }
+          MOL_PACKAGE_TOKEN=$(read_secret MOL_PACKAGE_TOKEN %2Fci%2Fgitea-pypi-publisher)
+          if [ -z "$MOL_PACKAGE_TOKEN" ]; then
+            echo "Infisical returned empty for MOL_PACKAGE_TOKEN at /ci/gitea-pypi-publisher (prod) -- authoritative fetch failed; failing closed instead of publishing with an empty token" >&2
+            exit 1
+          fi
+          echo "::add-mask::$MOL_PACKAGE_TOKEN"
+          echo "MOL_PACKAGE_TOKEN=$MOL_PACKAGE_TOKEN" >> "$GITHUB_ENV"
+          echo "MOL_PACKAGE_TOKEN loaded from Infisical (non-empty, len=${#MOL_PACKAGE_TOKEN})"
+
+      - name: Publish to Gitea npm registry
+        env:
+          # Consumed from the process environment ($GITHUB_ENV write above),
+          # proven non-empty by the fail-closed Infisical fetch step.
+          NODE_AUTH_TOKEN: '${{ env.MOL_PACKAGE_TOKEN }}'
+        run: |
+          npm config set @molecule-ai:registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
+          npm config set //git.moleculesai.app/api/packages/molecule-ai/npm/:_authToken "$NODE_AUTH_TOKEN"
+          npm publish --registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
