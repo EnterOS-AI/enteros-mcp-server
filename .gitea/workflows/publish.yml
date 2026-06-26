@@ -11,7 +11,11 @@ jobs:
         with:
           node-version: '20'
       - run: npm install
-      - run: npm run build
+      # build:manifest = `tsc && node dist/manifest-emit.js`, so the
+      # producer-emitted dist/manifest.json (per-mode, versioned tool manifest,
+      # RFC #3285 P1) is generated BEFORE `npm publish` and ships in the npm
+      # tarball (no `files` allowlist / `.npmignore`; exports point into dist/).
+      - run: npm run build:manifest
       - run: npm test
 
       # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven

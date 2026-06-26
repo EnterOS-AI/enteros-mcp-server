@@ -366,8 +366,14 @@ async function main() {
   }
 }
 
-// Only auto-start when run directly (not when imported for testing).
-// JEST_WORKER_ID is set automatically by Jest in every worker process.
-if (!process.env.JEST_WORKER_ID) {
+// Only auto-start when run directly (not when imported). main() does I/O
+// (platform health fetch + auth preflight + stdio connect), so it must NOT run
+// when another module imports createServer for enumeration:
+//   - JEST_WORKER_ID  is set automatically by Jest in every worker process.
+//   - MOLECULE_MCP_SUPPRESS_AUTOSTART is set by the producer-emitted tool
+//     manifest emitter (manifest-emit.ts) before it dynamically imports this
+//     module to dump the registered tools. (Env, not import.meta, so this stays
+//     valid under the CommonJS ts-jest transform the test suite uses.)
+if (!process.env.JEST_WORKER_ID && !process.env.MOLECULE_MCP_SUPPRESS_AUTOSTART) {
   main().catch((err) => logError(err, "MCP server main() threw unexpectedly"));
 }
