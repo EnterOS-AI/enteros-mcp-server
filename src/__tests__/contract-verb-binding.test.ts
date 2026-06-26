@@ -1,5 +1,5 @@
 /**
- * Producer-binding test — MCP-plugin delivery verb contract (core#3082).
+ * Producer-binding test — MCP-plugin delivery verb contract (core#3082 / #3280).
  *
  * WHY THIS EXISTS
  * ───────────────
@@ -7,7 +7,8 @@
  * provisioned concierge is healthy by checking that the management MCP
  * surfaces a known workspace-creation verb (namespaced
  * `mcp__<mcp_server_name>__<verb>`). Core asserts that verb from a SHARED
- * contract: `contracts/mcp-plugin-delivery.contract.json`.
+ * contract: `contracts/mcp-plugin-delivery.contract.json`. The contract's
+ * SSOT for the verb is the SINGULAR field `required_tool` (a string).
  *
  * THIS repo (@molecule-ai/mcp-server) is the PRODUCER of that verb. Because
  * the boundary is cross-language (Go core ↔ TS mcp-server) there is no typed
@@ -16,41 +17,37 @@
  * exposes, and core only finds out at runtime, when a freshly provisioned
  * concierge degrades.
  *
- * That second failure mode is the ORIGINAL bug: the contract hand-asserted
- * `create_workspace`, but the concierge runs THIS server in MANAGEMENT mode,
- * whose workspace-creation verb is `provision_workspace` — `create_workspace`
- * is NEVER registered in management mode (createServer() returns early before
- * the legacy workspace-mode tools). Nothing verified the asserted verb against
- * the producer, so the gate keyed off a verb no build ever surfaced. This test
- * is exactly the missing verification: pointed at the corrected contract
- * (`required_tools: ["provision_workspace"]`) it confirms the management server
- * really exposes that verb, and it would have FAILED on its first run against
- * the wrong `create_workspace` contract — catching the contract being wrong on
- * day one instead of via a fleet-wide runtime degrade.
+ * That second failure mode is the ORIGINAL bug: an earlier contract
+ * hand-asserted `create_workspace`, but the concierge runs THIS server in
+ * MANAGEMENT mode, whose workspace-creation verb is `provision_workspace` —
+ * `create_workspace` is NEVER registered in management mode (createServer()
+ * returns early before the legacy workspace-mode tools). Nothing verified the
+ * asserted verb against the producer, so the gate keyed off a verb no build
+ * ever surfaced. This test is exactly the missing verification: it confirms the
+ * management server really exposes the contract's `required_tool`
+ * (provision_workspace), and it would have FAILED on its first run against the
+ * wrong `create_workspace` contract — catching the contract being wrong on day
+ * one instead of via a fleet-wide runtime degrade.
  *
  * WHAT THIS ENFORCES
  * ──────────────────
  * Against the SAME contract file core validates against (vendored byte-identical
  * into this repo and kept honest by a CI sync-check — see
- * `.gitea/scripts/check-contract-vendor-sync.sh`). Everything is derived from
- * the contract (no verb is hard-coded in the assertions), so the test tracks
- * whatever the SSOT declares:
+ * `.gitea/scripts/check-contract-vendor-sync.sh`). The verb is read from the
+ * contract (not hard-coded), so the test tracks whatever the SSOT declares:
  *
  *   1. The management server's name equals the contract's `mcp_server_name`
  *      (so `mcp__<name>__<verb>` namespacing core derives actually matches
  *      what this server registers under).
- *   2. EVERY verb in `required_tools` is a registered tool of the management
- *      server — the producer genuinely surfaces every verb the gate REQUIRES.
- *      (This is the assertion that fails on a contract asserting a verb the
- *      producer never exposes, e.g. the original `create_workspace`.)
- *   3. The management tool set contains at least one verb from the accepted
- *      union (`required_tools ∪ transitional_tool_aliases`) — the precise
- *      condition core fail-closes on.
- *   4. The contract declares `required_tools` non-empty (a corrupt contract
- *      that emptied it would derive an empty accepted set in core →
+ *   2. The contract's `required_tool` verb is a registered tool of the
+ *      management server — the producer genuinely surfaces the verb the gate
+ *      REQUIRES. (This is the assertion that fails on a contract asserting a
+ *      verb the producer never exposes, e.g. the original `create_workspace`.)
+ *   3. The contract declares a non-empty `required_tool` (a corrupt contract
+ *      that emptied it would derive an empty accepted id in core →
  *      fail-closed forever).
  *
- * Renaming/dropping a required verb in this repo therefore fails ITS OWN CI
+ * Renaming/dropping the required verb in this repo therefore fails ITS OWN CI
  * here, before a stale build can be published and degrade a tenant.
  *
  * CONTRACT-SHARING MECHANISM: vendored copy + CI sync-check (chosen over a
@@ -89,8 +86,9 @@ import { createServer } from "../index.js";
 
 interface DeliveryContract {
   mcp_server_name: string;
-  required_tools: string[];
-  transitional_tool_aliases?: string[];
+  // SSOT for the management-MCP workspace-creation verb (core#3280): a SINGULAR
+  // string, namespaced by core to `mcp__<mcp_server_name>__<required_tool>`.
+  required_tool: string;
 }
 
 const CONTRACT_PATH = join(__dirname, "..", "..", "contracts", "mcp-plugin-delivery.contract.json");
@@ -120,58 +118,31 @@ function managementServerToolNames(): { serverName: string; tools: string[] } {
 describe("MCP-plugin delivery verb contract (producer binding)", () => {
   const contract = loadContract();
 
-  test("contract declares a non-empty canonical required_tools list", () => {
-    // A contract that emptied required_tools would make core derive an empty
-    // accepted-tool set and fail-close every concierge. Guard the producer's
-    // own copy too, so a corrupted vendored contract is caught here.
-    expect(Array.isArray(contract.required_tools)).toBe(true);
-    expect(contract.required_tools.length).toBeGreaterThan(0);
+  test("contract declares a non-empty required_tool verb", () => {
+    // An empty required_tool would make core derive an empty accepted tool id
+    // and fail-close every concierge. Guard the producer's own copy too, so a
+    // corrupted vendored contract is caught here.
+    expect(typeof contract.required_tool).toBe("string");
+    expect(contract.required_tool.length).toBeGreaterThan(0);
     expect(contract.mcp_server_name).toBeTruthy();
   });
 
   test("management server registers under the contract's mcp_server_name", () => {
     // The gate derives `mcp__<mcp_server_name>__<verb>`; if this server
-    // registered under a different name, none of the derived ids would match.
+    // registered under a different name, the derived id would never match.
     const { serverName } = managementServerToolNames();
     expect(serverName).toBe(contract.mcp_server_name);
   });
 
-  test("every required verb is genuinely registered by the management server", () => {
-    // The core gate REQUIRES these verbs. If the contract asserts a verb the
+  test("the contract's required_tool verb is genuinely registered by the management server", () => {
+    // The core gate REQUIRES this verb. If the contract asserts a verb the
     // producer never registers (the original create_workspace bug), this fails
-    // — which is precisely the day-one verification that was missing.
+    // — precisely the day-one verification that was missing.
     const { tools } = managementServerToolNames();
-    const missing = contract.required_tools.filter((verb) => !tools.includes(verb));
-    expect(missing).toEqual([]);
+    expect(tools).toContain(contract.required_tool);
 
-    // Each required verb must be a uniquely-registered tool (the SDK rejects
-    // duplicate names; this catches a partial/duplicate registration regression).
-    for (const verb of contract.required_tools) {
-      expect(tools.filter((t) => t === verb)).toHaveLength(1);
-    }
-  });
-
-  test("management tool set ⊇ at least one accepted verb (required ∪ aliases)", () => {
-    const { tools } = managementServerToolNames();
-    const accepted = [...contract.required_tools, ...(contract.transitional_tool_aliases ?? [])];
-    const present = accepted.filter((verb) => tools.includes(verb));
-
-    // The exact condition core's online/degraded gate fail-closes on: a build
-    // surfacing NONE of the accepted verbs degrades every concierge built from
-    // it. Renaming/dropping the verb this build exposes trips this in OUR CI.
-    expect(present.length).toBeGreaterThan(0);
-  });
-
-  test("any declared transitional alias that this build exposes is uniquely registered", () => {
-    // Aliases are OPTIONAL (the corrected contract may carry none). For any
-    // alias this build happens to register, pin it as a unique tool so a
-    // partial/duplicate alias registration is caught. No alias is hard-coded:
-    // this is a no-op when the contract declares none.
-    const { tools } = managementServerToolNames();
-    for (const alias of contract.transitional_tool_aliases ?? []) {
-      if (tools.includes(alias)) {
-        expect(tools.filter((t) => t === alias)).toHaveLength(1);
-      }
-    }
+    // The verb must be a uniquely-registered tool (the SDK rejects duplicate
+    // names; this catches a partial/duplicate registration regression).
+    expect(tools.filter((t) => t === contract.required_tool)).toHaveLength(1);
   });
 });
