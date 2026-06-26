@@ -59,6 +59,17 @@ jobs:
       # Infisical is now the AUTHORITATIVE source for this token, so a
       # broken/empty/404 fetch HARD-FAILS here (fail-closed) rather than letting
       # the queue run with an empty merge-actor token.
+      #
+      # Provenance note (correcting PR description): the PR description
+      # describes the migrated set as "low-risk / least-priv". That label
+      # applied to MOL_PACKAGE_TOKEN (path /ci/gitea-pypi-publisher, scoped
+      # to publish creds) but does NOT apply here — AUTO_SYNC_TOKEN is read
+      # from /shared/dev-utils, a SHARED Infisical path that contains
+      # other dev-utils secrets alongside it. The binding safety for this
+      # token today is the validate-before-delete gate + the fail-closed
+      # empty/404 handling below; the dedicated least-priv path for
+      # AUTO_SYNC_TOKEN is a followup to land after a green run proves the
+      # shared-path fetch end-to-end.
       - name: Fetch AUTO_SYNC_TOKEN from Infisical SSOT
         env:
           INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
@@ -70,7 +81,7 @@ jobs:
           TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
             -H 'Content-Type: application/json' \
             -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
-            | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("accessToken") or "")')
+            | python3 -c 'import sys,json;d=json.load(sys.stdin);v=d.get("accessToken");print(v if isinstance(v,str) and v else "")')
           if [ -z "$TOK" ]; then
             echo "Infisical universal-auth login returned no accessToken -- cannot fetch AUTO_SYNC_TOKEN; failing closed" >&2
             exit 1
@@ -78,8 +89,13 @@ jobs:
           read_secret() {
             curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
               -H "Authorization: Bearer $TOK" \
-              | python3 -c 'import sys,json;d=json.load(sys.stdin);print((d.get("secret") or {}).get("secretValue") or "")'
+              | python3 -c 'import sys,json;d=json.load(sys.stdin);v=(d.get("secret") or {}).get("secretValue");print(v if isinstance(v,str) and v else "")'
           }
+          # AUTO_SYNC_TOKEN is currently read from /shared/dev-utils (SHARED
+          # path, not least-priv). See the Provenance note above for why the
+          # earlier "low-risk / least-priv" PR description applied only to
+          # MOL_PACKAGE_TOKEN's path. This block will be updated to a
+          # dedicated least-priv path in the followup.
           AUTO_SYNC_TOKEN=$(read_secret AUTO_SYNC_TOKEN %2Fshared%2Fdev-utils)
           if [ -z "$AUTO_SYNC_TOKEN" ]; then
             echo "Infisical returned empty for AUTO_SYNC_TOKEN at /shared/dev-utils (prod) -- authoritative fetch failed; failing closed instead of running the queue with an empty merge-actor token" >&2
