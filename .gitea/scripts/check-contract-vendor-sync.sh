@@ -9,21 +9,21 @@
 # must be re-synced (copy core's verbatim) so the producer test validates
 # against the SAME contract core's online/degraded gate uses.
 #
-# Mirrors molecule-core's mcp-plugin-delivery-contract-drift.yml (core ↔
-# template ↔ runtime byte-identity), extended to the producer side.
+# Mirrors molecule-core's mcp-plugin-delivery-contract-drift.yml (core <->
+# template <-> runtime byte-identity), extended to the producer side.
 #
-# AUTH: CONTRACT_SYNC_TOKEN — a Gitea token with read access to molecule-core
-# (read:repository scope). On a trusted context (push / non-fork PR / dispatch)
-# a missing token fails CLOSED. On an untrusted fork PR it soft-skips (the fork
-# cannot have repo secrets, and a vendored-copy drift will still be caught on
-# the trusted post-merge / scheduled run).
+# AUTH: molecule-core is PUBLIC, so its canonical contract is readable over the
+# raw endpoint WITHOUT a token. CONTRACT_SYNC_TOKEN is therefore OPTIONAL — if
+# set (rate-limit headroom, or if core is ever made private) it is sent as the
+# Authorization header; if unset we fetch unauthenticated. Either way the check
+# is FAIL-CLOSED on a fetch error (non-200 / network) and on byte drift, and it
+# runs on EVERY context (incl. fork PRs) because no secret is required.
 set -euo pipefail
 
 API_ROOT="${API_ROOT:-https://git.moleculesai.app/api/v1}"
 CORE_REPO="${CORE_REPO:-molecule-ai/molecule-core}"
 CONTRACT_REL="contracts/mcp-plugin-delivery.contract.json"
 LOCAL="${CONTRACT_REL}"
-IS_TRUSTED="${IS_TRUSTED:-true}"
 REF="${CORE_REF:-main}"
 
 if [ ! -f "$LOCAL" ]; then
@@ -31,25 +31,22 @@ if [ ! -f "$LOCAL" ]; then
   exit 1
 fi
 
-if [ -z "${CONTRACT_SYNC_TOKEN:-}" ]; then
-  if [ "$IS_TRUSTED" = "true" ]; then
-    echo "::error::CONTRACT_SYNC_TOKEN secret missing on a trusted context — cannot verify the vendored contract against core's canonical."
-    exit 1
-  fi
-  echo "::warning::CONTRACT_SYNC_TOKEN missing on an untrusted fork PR — skipping vendored-contract sync-check (it runs on the trusted post-merge / scheduled run)."
-  exit 0
-fi
-
 CANON_URL="${API_ROOT}/repos/${CORE_REPO}/raw/${CONTRACT_REL}?ref=${REF}"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
+# core is public -> token optional; send it only if provided.
+AUTH_ARGS=()
+if [ -n "${CONTRACT_SYNC_TOKEN:-}" ]; then
+  AUTH_ARGS=(-H "Authorization: token ${CONTRACT_SYNC_TOKEN}")
+fi
+
 set +e
-curl -fsS -H "Authorization: token ${CONTRACT_SYNC_TOKEN}" "${CANON_URL}" -o "$TMP"
+curl -fsS "${AUTH_ARGS[@]}" "${CANON_URL}" -o "$TMP"
 curl_status=$?
 set -e
 if [ "$curl_status" -ne 0 ]; then
-  echo "::error::Failed to fetch core's canonical contract from ${CORE_REPO}@${REF} (curl exit $curl_status)."
+  echo "::error::Failed to fetch core's canonical contract from ${CORE_REPO}@${REF} (curl exit $curl_status). Fail-closed."
   exit 1
 fi
 
