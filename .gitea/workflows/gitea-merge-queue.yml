@@ -49,11 +49,53 @@ jobs:
           ref: main
           path: molecule-core
 
+      # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven
+      # #971/#3274 pattern: source AUTO_SYNC_TOKEN (the devops-engineer persona
+      # PAT / non-bypass merge actor) from the Infisical SSOT via the CI machine
+      # identity instead of the duplicated Gitea Actions org secret. Runs in the
+      # SAME job as the consumer so the $GITHUB_ENV export is visible below. The
+      # Gitea org secret.AUTO_SYNC_TOKEN is RETAINED for now; validate-before-
+      # delete happens after this merges and a real run proves the fetch.
+      # Infisical is now the AUTHORITATIVE source for this token, so a
+      # broken/empty/404 fetch HARD-FAILS here (fail-closed) rather than letting
+      # the queue run with an empty merge-actor token.
+      - name: Fetch AUTO_SYNC_TOKEN from Infisical SSOT
+        env:
+          INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
+          INFISICAL_CI_CLIENT_SECRET: ${{ secrets.INFISICAL_CI_CLIENT_SECRET }}
+          INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_CI_PROJECT_ID }}
+        run: |
+          set -uo pipefail
+          BASE="https://key.moleculesai.app"
+          TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
+            | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("accessToken") or "")')
+          if [ -z "$TOK" ]; then
+            echo "Infisical universal-auth login returned no accessToken -- cannot fetch AUTO_SYNC_TOKEN; failing closed" >&2
+            exit 1
+          fi
+          read_secret() {
+            curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
+              -H "Authorization: Bearer $TOK" \
+              | python3 -c 'import sys,json;d=json.load(sys.stdin);print((d.get("secret") or {}).get("secretValue") or "")'
+          }
+          AUTO_SYNC_TOKEN=$(read_secret AUTO_SYNC_TOKEN %2Fshared%2Fdev-utils)
+          if [ -z "$AUTO_SYNC_TOKEN" ]; then
+            echo "Infisical returned empty for AUTO_SYNC_TOKEN at /shared/dev-utils (prod) -- authoritative fetch failed; failing closed instead of running the queue with an empty merge-actor token" >&2
+            exit 1
+          fi
+          echo "::add-mask::$AUTO_SYNC_TOKEN"
+          echo "AUTO_SYNC_TOKEN=$AUTO_SYNC_TOKEN" >> "$GITHUB_ENV"
+          echo "AUTO_SYNC_TOKEN loaded from Infisical (non-empty, len=${#AUTO_SYNC_TOKEN})"
+
       - name: Process one queued PR
         env:
           # AUTO_SYNC_TOKEN is the devops-engineer persona PAT. It is the
-          # non-bypass merge actor allowed by branch protection.
-          GITEA_TOKEN: ${{ secrets.AUTO_SYNC_TOKEN }}
+          # non-bypass merge actor allowed by branch protection. Now consumed
+          # from the process environment ($GITHUB_ENV write above), proven
+          # non-empty by the fail-closed Infisical fetch step.
+          GITEA_TOKEN: ${{ env.AUTO_SYNC_TOKEN }}
           GITEA_HOST: git.moleculesai.app
           REPO: ${{ github.repository }}
           WATCH_BRANCH: ${{ github.event.repository.default_branch }}
