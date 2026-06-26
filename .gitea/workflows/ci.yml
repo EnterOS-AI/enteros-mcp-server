@@ -59,15 +59,66 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # Source the OPTIONAL read:package token from the Infisical SSOT (not a
+      # Gitea Actions secret). The token is MOLECULE_TEMPLATE_REPO_TOKEN at
+      # /shared/controlplane (prod), which carries read:package on org
+      # molecule-ai. Per the no-Actions-secret / SSOT directive, the only Gitea
+      # Actions secrets used here are the documented Infisical bootstrap creds
+      # (INFISICAL_CI_CLIENT_ID / INFISICAL_CI_CLIENT_SECRET /
+      # INFISICAL_CI_PROJECT_ID) -- the same ones publish.yml and
+      # gitea-merge-queue.yml already consume.
+      #
+      # BEST-EFFORT / SKIP-LOUD: the packument endpoint is currently PUBLIC, so
+      # the read:package token is OPTIONAL and the gate runs fine without it. If
+      # the Infisical bootstrap creds are NOT wired on this repo (activation
+      # gap), we emit a ::warning:: and proceed tokenless -- we do NOT fail.
+      # Only the login-returned-empty-DESPITE-creds-present case fails closed
+      # (a real Infisical/identity fault, not an activation gap). This mirrors
+      # the creds step in molecule-controlplane's post-merge-lifecycle.yml.
+      - name: Fetch read:package token from Infisical SSOT (best-effort)
+        env:
+          INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
+          INFISICAL_CI_CLIENT_SECRET: ${{ secrets.INFISICAL_CI_CLIENT_SECRET }}
+          INFISICAL_CI_PROJECT_ID: ${{ secrets.INFISICAL_CI_PROJECT_ID }}
+        run: |
+          set -uo pipefail
+          # SKIP-LOUD when the Infisical bootstrap creds are absent: the gate is
+          # robust against a missing token because the packument is public, so
+          # an unwired repo must still run the gate (tokenless), not fail.
+          if [ -z "${INFISICAL_CI_CLIENT_ID:-}" ] || [ -z "${INFISICAL_CI_PROJECT_ID:-}" ]; then
+            echo "::warning::provenance SKIPPED Infisical token fetch -- Infisical CI creds not wired (need INFISICAL_CI_CLIENT_ID/SECRET + INFISICAL_CI_PROJECT_ID repo secrets). Activation gap, not a failure. The gate runs tokenless against the public packument."
+            exit 0
+          fi
+          BASE="https://key.moleculesai.app"
+          TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
+            | python3 -c 'import sys,json; v=json.load(sys.stdin).get("accessToken"); sys.stdout.write(v if isinstance(v,str) else "")')
+          # Creds were present but login returned no token -- a real Infisical /
+          # identity fault, not an activation gap. Fail closed.
+          if [ -z "$TOK" ]; then echo "::error::Infisical accessToken empty - failing closed"; exit 1; fi
+          read_secret() {
+            curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_CI_PROJECT_ID&environment=prod&secretPath=$2" \
+              -H "Authorization: Bearer $TOK" \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); v=(d.get("secret") or {}).get("secretValue"); print(v if isinstance(v,str) and v else "")'
+          }
+          PROVENANCE_REGISTRY_TOKEN=$(read_secret MOLECULE_TEMPLATE_REPO_TOKEN %2Fshared%2Fcontrolplane)
+          if [ -z "$PROVENANCE_REGISTRY_TOKEN" ]; then
+            echo "::warning::Infisical returned empty for MOLECULE_TEMPLATE_REPO_TOKEN at /shared/controlplane (prod) -- proceeding tokenless against the public packument (the read:package token is optional)."
+            exit 0
+          fi
+          echo "::add-mask::$PROVENANCE_REGISTRY_TOKEN"
+          echo "PROVENANCE_REGISTRY_TOKEN=$PROVENANCE_REGISTRY_TOKEN" >> "$GITHUB_ENV"
+          echo "read:package token loaded from Infisical SSOT (non-empty, len=${#PROVENANCE_REGISTRY_TOKEN})"
+
       - name: Publish-provenance gate (advisory)
         env:
-          # OPTIONAL read:package token for the Gitea npm registry. The
-          # packument endpoint is currently public, so the gate works without
-          # it, but wiring a read:package CI secret here makes the gate robust
-          # if the registry later enforces read:package. Do NOT use a
-          # write:package token. Expected secret name:
-          #   PROVENANCE_READ_PACKAGE_TOKEN  (read:package on org molecule-ai)
-          PROVENANCE_REGISTRY_TOKEN: ${{ secrets.PROVENANCE_READ_PACKAGE_TOKEN }}
+          # OPTIONAL read:package token for the Gitea npm registry, sourced from
+          # the Infisical SSOT in the step above (NOT a Gitea Actions secret).
+          # The packument endpoint is currently public, so this may be empty
+          # (best-effort) and the gate still runs. provenance-gate.sh only sends
+          # a bearer if PROVENANCE_REGISTRY_TOKEN is non-empty.
+          PROVENANCE_REGISTRY_TOKEN: ${{ env.PROVENANCE_REGISTRY_TOKEN }}
         run: bash .gitea/scripts/provenance-gate.sh
 
       - name: Provenance-gate self-test
