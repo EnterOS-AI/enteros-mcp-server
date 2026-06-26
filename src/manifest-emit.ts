@@ -1,1 +1,110 @@
-IyEvdXNyL2Jpbi9lbnYgbm9kZQovKioKICogUHJvZHVjZXItZW1pdHRlZCB0b29sIG1hbmlmZXN0IOKAlCBCVUlMRC1USU1FIEVNSVRURVIgKFRvb2wtQ29udHJhY3QgU1NPVCwKICogUkZDICMzMjg1LCBQMSkuCiAqCiAqIEJ1aWxkcyB0aGUgUkVBTCBzZXJ2ZXIgcGVyIG1vZGUgKHRoZSBzYW1lIGNyZWF0ZVNlcnZlcigpIHRoZSBiaW5hcnkgcnVucykgYW5kCiAqIGR1bXBzIHRoZSB0b29scyBpdCBBQ1RVQUxMWSByZWdpc3RlcnMgb3ZlciBhbiBpbi1tZW1vcnkgTUNQIGB0b29scy9saXN0YAogKiByb3VuZC10cmlwIOKAlCBuYW1lcyArIGRlc2NyaXB0aW9ucyArIEpTT04tU2NoZW1hIGlucHV0IHNpZ25hdHVyZXMg4oCUIHRoZW4KICogc3RhbXBzIHRoZSBwYWNrYWdlIHZlcnNpb24gYW5kIHdyaXRlcyBkaXN0L21hbmlmZXN0Lmpzb24uIEJlY2F1c2UgdGhlCiAqIG1hbmlmZXN0IGlzIGRlcml2ZWQgZnJvbSB0aGUgbGl2ZSByZWdpc3RyYXRpb25zLCBpdCBjYW5ub3QgZGVzY3JpYmUgYSBwaGFudG9tCiAqIHRvb2w6IGVudW1lcmF0aW9uIElTIHRoZSBzb3VyY2Ugb2YgdHJ1dGguCiAqCiAqIEFEVklTT1JZIC8gTk9OLUJSRUFLSU5HLiBUaGlzIGZpbGUgaXMgbmV2ZXIgaW1wb3J0ZWQgYnkgdGhlIHJ1bm5pbmcgc2VydmVyLgogKiBJdCBhZGRzIE5PIG5ldyBydW50aW1lIGRlcGVuZGVuY3k6IENsaWVudCwgSW5NZW1vcnlUcmFuc3BvcnQgYW5kIHRoZSBTREsncwogKiBvd24gem9kLXRvLWpzb24tc2NoZW1hIGFyZSBhbGwgcGFydCBvZiB0aGUgYWxyZWFkeS1waW5uZWQKICogQG1vZGVsY29udGV4dHByb3RvY29sL3Nkay4gSXQgcnVucyBvbmx5IHZpYSBgbnBtIHJ1biBtYW5pZmVzdGAgLwogKiBgbnBtIHJ1biBidWlsZDptYW5pZmVzdGAsIGFuZCBpbiB0aGUgdGFnLXRyaWdnZXJlZCBwdWJsaXNoIHdvcmtmbG93IGJlZm9yZQogKiBgbnBtIHB1Ymxpc2hgLCBzbyBkaXN0L21hbmlmZXN0Lmpzb24gc2hpcHMgaW4gdGhlIG5wbSB0YXJiYWxsLiBUaGUgcmVxdWlyZWQKICogQ0kgYGJ1aWxkYC9gdGVzdGAgc3RlcHMgYXJlIHVuY2hhbmdlZCAoYnVpbGQgc3RheXMgcGxhaW4gYHRzY2ApLgogKgogKiBDb21wb3NpbmcgdGhlIHJlYWwgc2VydmVyIGRvdWJsZXMgYXMgYSByZWdyZXNzaW9uIGdhdGU6IHRoZSBTREsgdGhyb3dzIG9uIGEKICogZHVwbGljYXRlIHRvb2wgbmFtZSwgc28gYSBjcm9zcy1yZWdpc3RyeSBjb2xsaXNpb24gZmFpbHMgdGhpcyBlbWl0dGVyIGxvdWRseS4KICoKICogUnVuOiBgbm9kZSBkaXN0L21hbmlmZXN0LWVtaXQuanNgIChhZnRlciBgdHNjYCkuIFdyaXRlcyBkaXN0L21hbmlmZXN0Lmpzb24uCiAqLwovLyBTdXBwcmVzcyBpbmRleC50cydzIGF1dG8tc3RhcnQgQkVGT1JFIGltcG9ydGluZyBpdC4gRVNNIGV2YWx1YXRlcyBzdGF0aWMKLy8gaW1wb3J0cyBiZWZvcmUgYW55IG90aGVyIHRvcC1sZXZlbCBjb2RlLCBzbyB0aGUgZHluYW1pYyBpbXBvcnQgb2YgLi9pbmRleC5qcwovLyBpbnNpZGUgdG9vbHNGb3JNb2RlKCkgaXMgd2hhdCBndWFyYW50ZWVzIHRoaXMgZW52IHZhciBpcyBhbHJlYWR5IHNldCB3aGVuCi8vIGluZGV4J3MgbW9kdWxlIGJvZHkgKGFuZCBpdHMgYXV0by1zdGFydCBndWFyZCkgcnVucy4gV2l0aG91dCB0aGlzLCBpbXBvcnRpbmcKLy8gY3JlYXRlU2VydmVyIHdvdWxkIGZpcmUgbWFpbigpJ3MgcGxhdGZvcm0gaGVhbHRoIGZldGNoICsgYXV0aCBwcmVmbGlnaHQgKwovLyBzdGRpbyBjb25uZWN0Lgpwcm9jZXNzLmVudi5NT0xFQ1VMRV9NQ1BfU1VQUFJFU1NfQVVUT1NUQVJUID0gIjEiOwoKaW1wb3J0IHsgd3JpdGVGaWxlU3luYyB9IGZyb20gIm5vZGU6ZnMiOwppbXBvcnQgeyBmaWxlVVJMVG9QYXRoLCBwYXRoVG9GaWxlVVJMIH0gZnJvbSAibm9kZTp1cmwiOwppbXBvcnQgeyBkaXJuYW1lLCBqb2luIH0gZnJvbSAibm9kZTpwYXRoIjsKaW1wb3J0IHsgY3JlYXRlUmVxdWlyZSB9IGZyb20gIm5vZGU6bW9kdWxlIjsKaW1wb3J0IHsgQ2xpZW50IH0gZnJvbSAiQG1vZGVsY29udGV4dHByb3RvY29sL3Nkay9jbGllbnQvaW5kZXguanMiOwppbXBvcnQgeyBJbk1lbW9yeVRyYW5zcG9ydCB9IGZyb20gIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZGsvaW5NZW1vcnkuanMiOwppbXBvcnQgeyBidWlsZE1hbmlmZXN0LCB0eXBlIE1hbmlmZXN0VG9vbCB9IGZyb20gIi4vbWFuaWZlc3QuanMiOwoKY29uc3QgcmVxdWlyZSA9IGNyZWF0ZVJlcXVpcmUoaW1wb3J0Lm1ldGEudXJsKTsKLy8gZGlzdC9tYW5pZmVzdC1lbWl0LmpzIOKGkiAuLi9wYWNrYWdlLmpzb24uIHBhY2thZ2UuanNvbiBpcyB0aGUgU0lOR0xFIHNvdXJjZSBvZgovLyB0cnV0aCBmb3IgdGhlIHZlcnNpb247IHRoZSBNY3BTZXJ2ZXIgY29uc3RydWN0b3IgdmVyc2lvbiAoIjEuMC4wIikgaXMgYQovLyBzZXBhcmF0ZSwgdW5yZWxhdGVkIHByb3RvY29sLXNlcnZlciBpZGVudGlmaWVyIGFuZCBpcyBpbnRlbnRpb25hbGx5IE5PVCB1c2VkLgpjb25zdCBwa2cgPSByZXF1aXJlKCIuLi9wYWNrYWdlLmpzb24iKSBhcyB7IG5hbWU6IHN0cmluZzsgdmVyc2lvbjogc3RyaW5nIH07CgovKioKICogQnVpbGRzIHRoZSBSRUFMIHNlcnZlciBmb3IgYG1vZGVgIGFuZCBkdW1wcyB0aGUgdG9vbHMgaXQgYWN0dWFsbHkgcmVnaXN0ZXJzCiAqIHZpYSBhbiBpbi1tZW1vcnkgTUNQIGNsaWVudCAodGhlIHN1cHBvcnRlZCBgdG9vbHMvbGlzdGAgY29udHJhY3QpLiBUb2dnbGVzCiAqIE1PTEVDVUxFX01DUF9NT0RFIGFyb3VuZCBjcmVhdGVTZXJ2ZXIoKSBleGFjdGx5IHRoZSB3YXkgaXNNYW5hZ2VtZW50TW9kZSgpCiAqIHJlYWRzIGl0LCBhbmQgcmVzdG9yZXMgdGhlIHByZXZpb3VzIHZhbHVlIGFmdGVyd2FyZCBzbyB0aGUgdHdvIHBhc3NlcyBuZXZlcgogKiBibGVlZCBpbnRvIGVhY2ggb3RoZXIuCiAqLwphc3luYyBmdW5jdGlvbiB0b29sc0Zvck1vZGUoCiAgbW9kZTogIm1hbmFnZW1lbnQiIHwgIndvcmtzcGFjZSIsCik6IFByb21pc2U8TWFuaWZlc3RUb29sW10+IHsKICBjb25zdCBwcmV2ID0gcHJvY2Vzcy5lbnYuTU9MRUNVTEVfTUNQX01PREU7CiAgcHJvY2Vzcy5lbnYuTU9MRUNVTEVfTUNQX01PREUgPSBtb2RlID09PSAibWFuYWdlbWVudCIgPyAibWFuYWdlbWVudCIgOiAiIjsKICB0cnkgewogICAgLy8gRHluYW1pYyBpbXBvcnQgKG5vdCBzdGF0aWMpIHNvIE1PTEVDVUxFX01DUF9TVVBQUkVTU19BVVRPU1RBUlQgaXMgYWxyZWFkeQogICAgLy8gc2V0IHdoZW4gaW5kZXgncyBtb2R1bGUgYm9keSBldmFsdWF0ZXMuIEVTTSBjYWNoZXMgdGhlIG1vZHVsZSwgc28gdGhpcwogICAgLy8gcmVzb2x2ZXMgb25jZSBhbmQgaXMgY2hlYXAgb24gdGhlIHNlY29uZCBtb2RlLgogICAgY29uc3QgeyBjcmVhdGVTZXJ2ZXIgfSA9IGF3YWl0IGltcG9ydCgiLi9pbmRleC5qcyIpOwogICAgY29uc3Qgc2VydmVyID0gY3JlYXRlU2VydmVyKCk7IC8vIFJFQUwgcmVnaXN0cmF0aW9ucyAoc3J2LnRvb2woLi4uKSkKICAgIGNvbnN0IFtjbGllbnRUcmFuc3BvcnQsIHNlcnZlclRyYW5zcG9ydF0gPQogICAgICBJbk1lbW9yeVRyYW5zcG9ydC5jcmVhdGVMaW5rZWRQYWlyKCk7CiAgICBjb25zdCBjbGllbnQgPSBuZXcgQ2xpZW50KHsKICAgICAgbmFtZTogIm1vbGVjdWxlLW1jcC1tYW5pZmVzdC1lbWl0dGVyIiwKICAgICAgdmVyc2lvbjogcGtnLnZlcnNpb24sCiAgICB9KTsKICAgIGF3YWl0IFByb21pc2UuYWxsKFsKICAgICAgc2VydmVyLmNvbm5lY3Qoc2VydmVyVHJhbnNwb3J0KSwKICAgICAgY2xpZW50LmNvbm5lY3QoY2xpZW50VHJhbnNwb3J0KSwKICAgIF0pOwogICAgY29uc3QgeyB0b29scyB9ID0gYXdhaXQgY2xpZW50Lmxpc3RUb29scygpOwogICAgYXdhaXQgY2xpZW50LmNsb3NlKCk7CiAgICByZXR1cm4gdG9vbHMubWFwKCh0KSA9PiAoewogICAgICBuYW1lOiB0Lm5hbWUsCiAgICAgIGRlc2NyaXB0aW9uOiB0LmRlc2NyaXB0aW9uID8/ICIiLAogICAgICBpbnB1dFNjaGVtYTogdC5pbnB1dFNjaGVtYSwKICAgIH0pKTsKICB9IGZpbmFsbHkgewogICAgaWYgKHByZXYgPT09IHVuZGVmaW5lZCkgZGVsZXRlIHByb2Nlc3MuZW52Lk1PTEVDVUxFX01DUF9NT0RFOwogICAgZWxzZSBwcm9jZXNzLmVudi5NT0xFQ1VMRV9NQ1BfTU9ERSA9IHByZXY7CiAgfQp9Cgphc3luYyBmdW5jdGlvbiBtYWluKCk6IFByb21pc2U8dm9pZD4gewogIGNvbnN0IG1hbmlmZXN0ID0gYnVpbGRNYW5pZmVzdCgKICAgIHBrZy5uYW1lLAogICAgcGtnLnZlcnNpb24sCiAgICBhd2FpdCB0b29sc0Zvck1vZGUoIm1hbmFnZW1lbnQiKSwKICAgIGF3YWl0IHRvb2xzRm9yTW9kZSgid29ya3NwYWNlIiksCiAgKTsKICBjb25zdCBvdXQgPSBqb2luKGRpcm5hbWUoZmlsZVVSTFRvUGF0aChpbXBvcnQubWV0YS51cmwpKSwgIm1hbmlmZXN0Lmpzb24iKTsgLy8gZGlzdC9tYW5pZmVzdC5qc29uCiAgd3JpdGVGaWxlU3luYyhvdXQsIEpTT04uc3RyaW5naWZ5KG1hbmlmZXN0LCBudWxsLCAyKSArICJcbiIpOwogIC8vIHN0ZGVyciBvbmx5IOKAlCBuZXZlciBwb2xsdXRlIHN0ZG91dCAodGhlIE1DUCBzdGRpbyBjaGFubmVsIGNvbnZlbnRpb24pLgogIGNvbnNvbGUuZXJyb3IoCiAgICBgV3JvdGUgJHtvdXR9OiBtYW5hZ2VtZW50PSR7bWFuaWZlc3QubW9kZXMubWFuYWdlbWVudC5sZW5ndGh9IHdvcmtzcGFjZT0ke21hbmlmZXN0Lm1vZGVzLndvcmtzcGFjZS5sZW5ndGh9IHRvb2xzICh2JHttYW5pZmVzdC52ZXJzaW9ufSlgLAogICk7Cn0KCi8vIFJ1biBvbmx5IHdoZW4gZXhlY3V0ZWQgYXMgdGhlIGVudHJ5cG9pbnQgKGBub2RlIGRpc3QvbWFuaWZlc3QtZW1pdC5qc2ApLgppZiAocHJvY2Vzcy5hcmd2WzFdICYmIGltcG9ydC5tZXRhLnVybCA9PT0gcGF0aFRvRmlsZVVSTChwcm9jZXNzLmFyZ3ZbMV0pLmhyZWYpIHsKICBtYWluKCkuY2F0Y2goKGVycikgPT4gewogICAgY29uc29sZS5lcnJvcigibWFuaWZlc3QgZW1pdCBmYWlsZWQ6IiwgZXJyKTsKICAgIHByb2Nlc3MuZXhpdCgxKTsKICB9KTsKfQo=
+#!/usr/bin/env node
+/**
+ * Producer-emitted tool manifest — BUILD-TIME EMITTER (Tool-Contract SSOT,
+ * RFC #3285, P1).
+ *
+ * Builds the REAL server per mode (the same createServer() the binary runs) and
+ * dumps the tools it ACTUALLY registers over an in-memory MCP `tools/list`
+ * round-trip — names + descriptions + JSON-Schema input signatures — then
+ * stamps the package version and writes dist/manifest.json. Because the
+ * manifest is derived from the live registrations, it cannot describe a phantom
+ * tool: enumeration IS the source of truth.
+ *
+ * ADVISORY / NON-BREAKING. This file is never imported by the running server.
+ * It adds NO new runtime dependency: Client, InMemoryTransport and the SDK's
+ * own zod-to-json-schema are all part of the already-pinned
+ * @modelcontextprotocol/sdk. It runs only via `npm run manifest` /
+ * `npm run build:manifest`, and in the tag-triggered publish workflow before
+ * `npm publish`, so dist/manifest.json ships in the npm tarball. The required
+ * CI `build`/`test` steps are unchanged (build stays plain `tsc`).
+ *
+ * Composing the real server doubles as a regression gate: the SDK throws on a
+ * duplicate tool name, so a cross-registry collision fails this emitter loudly.
+ *
+ * Run: `node dist/manifest-emit.js` (after `tsc`). Writes dist/manifest.json.
+ */
+// Suppress index.ts's auto-start BEFORE importing it. ESM evaluates static
+// imports before any other top-level code, so the dynamic import of ./index.js
+// inside toolsForMode() is what guarantees this env var is already set when
+// index's module body (and its auto-start guard) runs. Without this, importing
+// createServer would fire main()'s platform health fetch + auth preflight +
+// stdio connect.
+process.env.MOLECULE_MCP_SUPPRESS_AUTOSTART = "1";
+
+import { writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { buildManifest, type ManifestTool } from "./manifest.js";
+
+const require = createRequire(import.meta.url);
+// dist/manifest-emit.js → ../package.json. package.json is the SINGLE source of
+// truth for the version; the McpServer constructor version ("1.0.0") is a
+// separate, unrelated protocol-server identifier and is intentionally NOT used.
+const pkg = require("../package.json") as { name: string; version: string };
+
+/**
+ * Builds the REAL server for `mode` and dumps the tools it actually registers
+ * via an in-memory MCP client (the supported `tools/list` contract). Toggles
+ * MOLECULE_MCP_MODE around createServer() exactly the way isManagementMode()
+ * reads it, and restores the previous value afterward so the two passes never
+ * bleed into each other.
+ */
+async function toolsForMode(
+  mode: "management" | "workspace",
+): Promise<ManifestTool[]> {
+  const prev = process.env.MOLECULE_MCP_MODE;
+  process.env.MOLECULE_MCP_MODE = mode === "management" ? "management" : "";
+  try {
+    // Dynamic import (not static) so MOLECULE_MCP_SUPPRESS_AUTOSTART is already
+    // set when index's module body evaluates. ESM caches the module, so this
+    // resolves once and is cheap on the second mode.
+    const { createServer } = await import("./index.js");
+    const server = createServer(); // REAL registrations (srv.tool(...))
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    const client = new Client({
+      name: "molecule-mcp-manifest-emitter",
+      version: pkg.version,
+    });
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+    const { tools } = await client.listTools();
+    await client.close();
+    return tools.map((t) => ({
+      name: t.name,
+      description: t.description ?? "",
+      inputSchema: t.inputSchema,
+    }));
+  } finally {
+    if (prev === undefined) delete process.env.MOLECULE_MCP_MODE;
+    else process.env.MOLECULE_MCP_MODE = prev;
+  }
+}
+
+async function main(): Promise<void> {
+  const manifest = buildManifest(
+    pkg.name,
+    pkg.version,
+    await toolsForMode("management"),
+    await toolsForMode("workspace"),
+  );
+  const out = join(dirname(fileURLToPath(import.meta.url)), "manifest.json"); // dist/manifest.json
+  writeFileSync(out, JSON.stringify(manifest, null, 2) + "\n");
+  // stderr only — never pollute stdout (the MCP stdio channel convention).
+  console.error(
+    `Wrote ${out}: management=${manifest.modes.management.length} workspace=${manifest.modes.workspace.length} tools (v${manifest.version})`,
+  );
+}
+
+// Run only when executed as the entrypoint (`node dist/manifest-emit.js`).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("manifest emit failed:", err);
+    process.exit(1);
+  });
+}
