@@ -1,0 +1,80 @@
+name: contract-verb-binding
+
+# Producer-side verb-SSOT enforcement (core#3082 / #3280).
+#
+# Two guards, both NEW (this repo is the PRODUCER of the management-MCP
+# workspace-creation verb that molecule-core's online/degraded gate checks):
+#
+#   1. producer-binding-test — runs the unit test
+#      (src/__tests__/contract-verb-binding.test.ts) that asserts the
+#      management server registers the SHARED contract's `required_tool` verb
+#      (the singular SSOT field; provision_workspace). Renaming/dropping the
+#      verb fails here. Runs ALWAYS (offline, reads the vendored contract) —
+#      gating.
+#
+#   2. vendor-sync — byte-compares our vendored
+#      contracts/mcp-plugin-delivery.contract.json against molecule-core's
+#      canonical so the vendored copy can't silently drift. molecule-core is
+#      PUBLIC, so this needs NO secret: it reads the canonical over the public
+#      raw endpoint and is fail-closed on fetch-error or drift, on every
+#      context incl. fork PRs.
+#
+# Kept in a SEPARATE workflow from ci.yml so the producer-binding unit test is
+# added to the gating set without editing the existing CI job.
+#
+# CONTRACT SHAPE: the verb SSOT is the SINGULAR `required_tool` (a string),
+# landed on core main by core#3280. The vendored copy is byte-identical to
+# core main's canonical; vendor-sync enforces that byte-identity.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily — catch a core-side contract change that landed without a paired
+    # vendored re-sync here.
+    - cron: '33 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contract-verb-binding-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  producer-binding-test:
+    name: Producer-binding verb test (management tool set ⊇ contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Producer-binding verb test
+        run: npx jest src/__tests__/contract-verb-binding.test.ts
+
+  vendor-sync:
+    name: Vendored contract byte-identical to molecule-core canonical
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Byte-compare vendored contract against core canonical
+        env:
+          # molecule-core is public -> no secret required. CONTRACT_SYNC_TOKEN
+          # is sent only if present (rate-limit headroom / future-private core).
+          # Fail-closed on fetch error or byte drift regardless.
+          CONTRACT_SYNC_TOKEN: ${{ secrets.CONTRACT_SYNC_TOKEN }}
+          API_ROOT: ${{ github.server_url }}/api/v1
+        run: |
+          set -euo pipefail
+          export CORE_REF=main
+          bash .gitea/scripts/check-contract-vendor-sync.sh
