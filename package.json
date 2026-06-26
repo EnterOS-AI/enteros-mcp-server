@@ -1,1 +1,48 @@
-ewogICJuYW1lIjogIkBtb2xlY3VsZS1haS9tY3Atc2VydmVyIiwKICAidmVyc2lvbiI6ICIxLjYuMSIsCiAgImRlc2NyaXB0aW9uIjogIk1DUCBzZXJ2ZXIgZm9yIE1vbGVjdWxlIEFJIEFnZW50IFRlYW0gXHUyMDE0IG1hbmFnZSB3b3Jrc3BhY2VzLCBhZ2VudHMsIGFuZCBza2lsbHMgZnJvbSBhbnkgQUkgY29kaW5nIHRvb2wiLAogICJ0eXBlIjogIm1vZHVsZSIsCiAgImV4cG9ydHMiOiB7CiAgICAiLiI6ICIuL2Rpc3QvaW5kZXguanMiLAogICAgIi4vZXh0ZXJuYWwtd29ya3NwYWNlLXRvb2xzIjogIi4vZGlzdC9leHRlcm5hbF93b3Jrc3BhY2VfdG9vbHMuanMiLAogICAgIi4vaW5ib3gtdXBsb2FkcyI6ICIuL2Rpc3QvaW5ib3gtdXBsb2Fkcy5qcyIsCiAgICAiLi9zZXNzaW9uLWN1cnNvciI6ICIuL2Rpc3Qvc2Vzc2lvbi1jdXJzb3IuanMiLAogICAgIi4vdGFyZ2V0cyI6ICIuL2Rpc3QvdGFyZ2V0cy5qcyIKICB9LAogICJ0eXBlcyI6ICIuL2Rpc3QvaW5kZXguZC50cyIsCiAgImJpbiI6IHsKICAgICJtb2xlY3VsZS1tY3AiOiAiLi9kaXN0L2luZGV4LmpzIgogIH0sCiAgInNjcmlwdHMiOiB7CiAgICAiYnVpbGQiOiAidHNjIiwKICAgICJtYW5pZmVzdCI6ICJub2RlIGRpc3QvbWFuaWZlc3QtZW1pdC5qcyIsCiAgICAiYnVpbGQ6bWFuaWZlc3QiOiAidHNjICYmIG5vZGUgZGlzdC9tYW5pZmVzdC1lbWl0LmpzIiwKICAgICJzdGFydCI6ICJub2RlIGRpc3QvaW5kZXguanMiLAogICAgInRlc3QiOiAiamVzdCIsCiAgICAidGVzdDppbnRlZ3JhdGlvbiI6ICJqZXN0IC0tY29uZmlnIGplc3QuaW50ZWdyYXRpb24uY2pzIgogIH0sCiAgImRlcGVuZGVuY2llcyI6IHsKICAgICJAbW9kZWxjb250ZXh0cHJvdG9jb2wvc2RrIjogIl4xLjEyLjAiLAogICAgInBpbm8iOiAiXjkuNi4wIiwKICAgICJwaW5vLXByZXR0eSI6ICJeMTMuMC4wIiwKICAgICJ6b2QiOiAiXjMuMjMuMCIKICB9LAogICJkZXZEZXBlbmRlbmNpZXMiOiB7CiAgICAiQHR5cGVzL2plc3QiOiAiXjMwLjAuMCIsCiAgICAiQHR5cGVzL25vZGUiOiAiXjIwLjAuMCIsCiAgICAiamVzdCI6ICJeMzAuMy4wIiwKICAgICJ0cy1qZXN0IjogIl4yOS40LjkiLAogICAgInR5cGVzY3JpcHQiOiAiXjUuNS4wIgogIH0sCiAgIm92ZXJyaWRlcyI6IHsKICAgICJxcyI6ICJeNi4xNS4yIgogIH0sCiAgInB1Ymxpc2hDb25maWciOiB7CiAgICAicmVnaXN0cnkiOiAiaHR0cHM6Ly9naXQubW9sZWN1bGVzYWkuYXBwL2FwaS9wYWNrYWdlcy9tb2xlY3VsZS1haS9ucG0vIgogIH0sCiAgInJlcG9zaXRvcnkiOiB7CiAgICAidHlwZSI6ICJnaXQiLAogICAgInVybCI6ICJodHRwczovL2dpdC5tb2xlY3VsZXNhaS5hcHAvbW9sZWN1bGUtYWkvbW9sZWN1bGUtbWNwLXNlcnZlci5naXQiCiAgfQp9Cg==
+{
+  "name": "@molecule-ai/mcp-server",
+  "version": "1.6.1",
+  "description": "MCP server for Molecule AI Agent Team — manage workspaces, agents, and skills from any AI coding tool",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./external-workspace-tools": "./dist/external_workspace_tools.js",
+    "./inbox-uploads": "./dist/inbox-uploads.js",
+    "./session-cursor": "./dist/session-cursor.js",
+    "./targets": "./dist/targets.js"
+  },
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "molecule-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "manifest": "node dist/manifest-emit.js",
+    "build:manifest": "tsc && node dist/manifest-emit.js",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:integration": "jest --config jest.integration.cjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5.5.0"
+  },
+  "overrides": {
+    "qs": "^6.15.2"
+  },
+  "publishConfig": {
+    "registry": "https://git.moleculesai.app/api/packages/molecule-ai/npm/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://git.moleculesai.app/molecule-ai/molecule-mcp-server.git"
+  }
+}
