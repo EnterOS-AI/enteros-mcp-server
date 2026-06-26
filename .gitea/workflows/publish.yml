@@ -13,9 +13,51 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm test
+
+      # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven
+      # #971/#3274 pattern: source MOL_PACKAGE_TOKEN from the Infisical SSOT via
+      # the CI machine identity instead of the duplicated Gitea Actions secret.
+      # Runs in the SAME job as the publish consumer so the $GITHUB_ENV export is
+      # visible below. The Gitea secret.MOL_PACKAGE_TOKEN is RETAINED for now;
+      # validate-before-delete happens after this merges and a real run proves
+      # the fetch. Infisical is now the AUTHORITATIVE source for this token, so a
+      # broken/empty/404 fetch HARD-FAILS here (fail-closed) rather than letting
+      # the publish step run with an empty auth token.
+      - name: Fetch MOL_PACKAGE_TOKEN from Infisical SSOT
+        env:
+          INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
+          INFISICAL_CI_CLIENT_SECRET: ${{ secrets.INFISICAL_CI_CLIENT_SECRET }}
+          INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_CI_PROJECT_ID }}
+        run: |
+          set -uo pipefail
+          BASE="https://key.moleculesai.app"
+          TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
+            | python3 -c 'import sys,json;d=json.load(sys.stdin);v=d.get("accessToken");print(v if isinstance(v,str) and v else "")')
+          if [ -z "$TOK" ]; then
+            echo "Infisical universal-auth login returned no accessToken -- cannot fetch MOL_PACKAGE_TOKEN; failing closed" >&2
+            exit 1
+          fi
+          read_secret() {
+            curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
+              -H "Authorization: Bearer $TOK" \
+              | python3 -c 'import sys,json;d=json.load(sys.stdin);v=(d.get("secret") or {}).get("secretValue");print(v if isinstance(v,str) and v else "")'
+          }
+          MOL_PACKAGE_TOKEN=$(read_secret MOL_PACKAGE_TOKEN %2Fci%2Fgitea-pypi-publisher)
+          if [ -z "$MOL_PACKAGE_TOKEN" ]; then
+            echo "Infisical returned empty for MOL_PACKAGE_TOKEN at /ci/gitea-pypi-publisher (prod) -- authoritative fetch failed; failing closed instead of publishing with an empty token" >&2
+            exit 1
+          fi
+          echo "::add-mask::$MOL_PACKAGE_TOKEN"
+          echo "MOL_PACKAGE_TOKEN=$MOL_PACKAGE_TOKEN" >> "$GITHUB_ENV"
+          echo "MOL_PACKAGE_TOKEN loaded from Infisical (non-empty, len=${#MOL_PACKAGE_TOKEN})"
+
       - name: Publish to Gitea npm registry
         env:
-          NODE_AUTH_TOKEN: '${{ secrets.MOL_PACKAGE_TOKEN }}'
+          # Consumed from the process environment ($GITHUB_ENV write above),
+          # proven non-empty by the fail-closed Infisical fetch step.
+          NODE_AUTH_TOKEN: '${{ env.MOL_PACKAGE_TOKEN }}'
         run: |
           npm config set @molecule-ai:registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
           npm config set //git.moleculesai.app/api/packages/molecule-ai/npm/:_authToken "$NODE_AUTH_TOKEN"
