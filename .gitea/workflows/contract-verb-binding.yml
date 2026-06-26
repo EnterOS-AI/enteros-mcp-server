@@ -1,15 +1,16 @@
 name: contract-verb-binding
 
-# Producer-side verb-SSOT enforcement (core#3082).
+# Producer-side verb-SSOT enforcement (core#3082 / #3280).
 #
 # Two guards, both NEW (this repo is the PRODUCER of the management-MCP
 # workspace-creation verb that molecule-core's online/degraded gate checks):
 #
 #   1. producer-binding-test — runs the unit test
 #      (src/__tests__/contract-verb-binding.test.ts) that asserts the
-#      management server's registered tool set satisfies the SHARED contract's
-#      accepted verb union. Renaming/dropping the verb fails here.
-#      Runs ALWAYS (offline, reads the vendored contract) — gating.
+#      management server registers the SHARED contract's `required_tool` verb
+#      (the singular SSOT field; provision_workspace). Renaming/dropping the
+#      verb fails here. Runs ALWAYS (offline, reads the vendored contract) —
+#      gating.
 #
 #   2. vendor-sync — byte-compares our vendored
 #      contracts/mcp-plugin-delivery.contract.json against molecule-core's
@@ -22,11 +23,9 @@ name: contract-verb-binding
 #   • the cross-repo sync-check (which needs a secret) can soft-skip on fork
 #     PRs without affecting the main test job.
 #
-# DEPENDS ON: molecule-core's verb-SSOT PR (feat/3082-mcp-verb-ssot-contract)
-# landing the plural `required_tools` + `transitional_tool_aliases` shape on
-# core main. Until that merges, the vendored copy intentionally tracks the
-# AGREED shape and `vendor-sync` will (correctly) report drift vs the
-# not-yet-updated main — merge this AFTER the core contract shape lands.
+# CONTRACT SHAPE: the verb SSOT is the SINGULAR `required_tool` (a string),
+# landed on core main by core#3280. The vendored copy is byte-identical to
+# core main's canonical; vendor-sync enforces that byte-identity.
 
 on:
   push:
