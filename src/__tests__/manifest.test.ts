@@ -1,1 +1,123 @@
-LyoqCiAqIFVuaXQgdGVzdHMgZm9yIHRoZSBwcm9kdWNlci1lbWl0dGVkIHRvb2wgbWFuaWZlc3QgKFJGQyAjMzI4NSwgUDEpLgogKgogKiBUd28gY29udHJhY3RzIGFyZSBwaW5uZWQgaGVyZToKICoKICogICgxKSBFTlZFTE9QRSDigJQgYnVpbGRNYW5pZmVzdCgpIGlzIHB1cmUgKG5vIFNESywgbm8gSS9PKSwgc28gd2UgYXNzZXJ0IHRoZQogKiAgICAgIHZlcnNpb25lZC9wZXItbW9kZS9zdGFtcGVkIHNoYXBlIGFuZCBpdHMgZGV0ZXJtaW5pc20gZGlyZWN0bHkuIFRoaXMgaXMKICogICAgICB3aGF0IGEgY29uc3VtZXIgcGFyc2VzOyBpdCBtdXN0IGJlIHN0YWJsZSBhbmQgdmVyc2lvbi1zdGFtcGVkLgogKgogKiAgKDIpIEVOVU1FUkFUSU9OIFNPVVJDRSDigJQgdGhlIG1hbmlmZXN0IGlzIGRlcml2ZWQgZnJvbSBjcmVhdGVTZXJ2ZXIoKSdzCiAqICAgICAgQUNUVUFMIHJlZ2lzdHJhdGlvbnMuIFdlIG1vY2sgdGhlIE1DUCBTREsgd2l0aCB0aGUgc2FtZSByZWNvcmRpbmcgc2hpbQogKiAgICAgIG1hbmFnZW1lbnQudGVzdC50cyB1c2VzIChyZWNvcmRzIHRvb2wgbmFtZXM7IHRocm93cyBvbiBkdXBsaWNhdGVzIGxpa2UKICogICAgICB0aGUgcmVhbCBTREspIGFuZCBhc3NlcnQgZWFjaCBtb2RlIGVudW1lcmF0ZXMgYSBub24tZW1wdHksIGNvbGxpc2lvbi1mcmVlCiAqICAgICAgc2V0LiBUaGlzIGlzIHRoZSByZWdyZXNzaW9uIGdhdGU6IGlmIHR3byByZWdpc3RyYXJzIGV2ZXIgY29sbGlkZSB0aGUKICogICAgICBzZXJ2ZXIgY2FuJ3QgYmUgY29tcG9zZWQsIHNvIHRoZSBtYW5pZmVzdCBjYW5ub3QgZGVzY3JpYmUgYSBwaGFudG9tLgogKgogKiBUaGUgcmVhbCBpbi1tZW1vcnktY2xpZW50IGVtaXQgcGF0aCAoQ2xpZW50ICsgSW5NZW1vcnlUcmFuc3BvcnQgKyB0b29scy9saXN0KQogKiBydW5zIG9ubHkgYXQgYnVpbGQgdGltZSBhZ2FpbnN0IHRoZSBSRUFMIFNESyAobm9kZSwgbm90IGplc3QpOyBpdCBpcyBub3QKICogZXhlcmNpc2VkIGhlcmUgYmVjYXVzZSB0aGUgU0RLIGlzIG1vY2tlZCB1bmRlciBqZXN0LgogKi8KCmplc3QubW9jaygiQG1vZGVsY29udGV4dHByb3RvY29sL3Nkay9zZXJ2ZXIvbWNwLmpzIiwgKCkgPT4gKHsKICBNY3BTZXJ2ZXI6IGNsYXNzIHsKICAgIHJlZ2lzdGVyZWRUb29sTmFtZXM6IHN0cmluZ1tdID0gW107CiAgICB0b29sKG5hbWU6IHN0cmluZykgewogICAgICBpZiAodGhpcy5yZWdpc3RlcmVkVG9vbE5hbWVzLmluY2x1ZGVzKG5hbWUpKSB7CiAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBUb29sICR7bmFtZX0gaXMgYWxyZWFkeSByZWdpc3RlcmVkYCk7CiAgICAgIH0KICAgICAgdGhpcy5yZWdpc3RlcmVkVG9vbE5hbWVzLnB1c2gobmFtZSk7CiAgICB9CiAgICBjb25uZWN0KCkgewogICAgICByZXR1cm4gUHJvbWlzZS5yZXNvbHZlKCk7CiAgICB9CiAgfSwKfSkpOwpqZXN0Lm1vY2soIkBtb2RlbGNvbnRleHRwcm90b2NvbC9zZGsvc2VydmVyL3N0ZGlvLmpzIiwgKCkgPT4gKHsKICBTdGRpb1NlcnZlclRyYW5zcG9ydDogY2xhc3Mge30sCn0pKTsKCmltcG9ydCB7IGNyZWF0ZVNlcnZlciB9IGZyb20gIi4uL2luZGV4LmpzIjsKaW1wb3J0IHsgYnVpbGRNYW5pZmVzdCwgdHlwZSBNYW5pZmVzdFRvb2wgfSBmcm9tICIuLi9tYW5pZmVzdC5qcyI7Cgpjb25zdCB0b29sID0gKG5hbWU6IHN0cmluZywgZGVzY3JpcHRpb24gPSAiIiwgaW5wdXRTY2hlbWE6IHVua25vd24gPSB7fSk6IE1hbmlmZXN0VG9vbCA9PiAoewogIG5hbWUsCiAgZGVzY3JpcHRpb24sCiAgaW5wdXRTY2hlbWEsCn0pOwoKZGVzY3JpYmUoImJ1aWxkTWFuaWZlc3QgZW52ZWxvcGUiLCAoKSA9PiB7CiAgaXQoInN0YW1wcyBwYWNrYWdlIG5hbWUgKyB2ZXJzaW9uIGFuZCB0aGUgdHdvIG1vZGUga2V5cyIsICgpID0+IHsKICAgIGNvbnN0IG0gPSBidWlsZE1hbmlmZXN0KAogICAgICAiQG1vbGVjdWxlLWFpL21jcC1zZXJ2ZXIiLAogICAgICAiOS45LjkiLAogICAgICBbdG9vbCgicHJvdmlzaW9uX3dvcmtzcGFjZSIpXSwKICAgICAgW3Rvb2woImNoYXRfd2l0aF9hZ2VudCIpXSwKICAgICAgIjIwMjYtMDYtMjZUMDA6MDA6MDAuMDAwWiIsCiAgICApOwogICAgZXhwZWN0KG0ubmFtZSkudG9CZSgiQG1vbGVjdWxlLWFpL21jcC1zZXJ2ZXIiKTsKICAgIGV4cGVjdChtLnZlcnNpb24pLnRvQmUoIjkuOS45Iik7CiAgICBleHBlY3QobS5nZW5lcmF0ZWRBdCkudG9CZSgiMjAyNi0wNi0yNlQwMDowMDowMC4wMDBaIik7CiAgICBleHBlY3QoT2JqZWN0LmtleXMobS5tb2Rlcykuc29ydCgpKS50b0VxdWFsKFsibWFuYWdlbWVudCIsICJ3b3Jrc3BhY2UiXSk7CiAgICBleHBlY3QobS5tb2Rlcy5tYW5hZ2VtZW50Lm1hcCgodCkgPT4gdC5uYW1lKSkudG9FcXVhbChbInByb3Zpc2lvbl93b3Jrc3BhY2UiXSk7CiAgICBleHBlY3QobS5tb2Rlcy53b3Jrc3BhY2UubWFwKCh0KSA9PiB0Lm5hbWUpKS50b0VxdWFsKFsiY2hhdF93aXRoX2FnZW50Il0pOwogIH0pOwoKICBpdCgic29ydHMgdG9vbHMgYnkgbmFtZSB3aXRoaW4gZWFjaCBtb2RlIChkZXRlcm1pbmlzdGljIG91dHB1dCkiLCAoKSA9PiB7CiAgICBjb25zdCBtID0gYnVpbGRNYW5pZmVzdCgKICAgICAgIkBtb2xlY3VsZS1haS9tY3Atc2VydmVyIiwKICAgICAgIjEuMC4wIiwKICAgICAgW3Rvb2woInpldGEiKSwgdG9vbCgiYWxwaGEiKSwgdG9vbCgibWlrZSIpXSwKICAgICAgW3Rvb2woInlhbmtlZSIpLCB0b29sKCJicmF2byIpXSwKICAgICAgIjIwMjYtMDYtMjZUMDA6MDA6MDAuMDAwWiIsCiAgICApOwogICAgZXhwZWN0KG0ubW9kZXMubWFuYWdlbWVudC5tYXAoKHQpID0+IHQubmFtZSkpLnRvRXF1YWwoWyJhbHBoYSIsICJtaWtlIiwgInpldGEiXSk7CiAgICBleHBlY3QobS5tb2Rlcy53b3Jrc3BhY2UubWFwKCh0KSA9PiB0Lm5hbWUpKS50b0VxdWFsKFsiYnJhdm8iLCAieWFua2VlIl0pOwogIH0pOwoKICBpdCgicHJlc2VydmVzIGRlc2NyaXB0aW9uICsgaW5wdXRTY2hlbWEgKHRoZSB2ZXJiJ3Mgc2lnbmF0dXJlKSIsICgpID0+IHsKICAgIGNvbnN0IHNjaGVtYSA9IHsgdHlwZTogIm9iamVjdCIsIHByb3BlcnRpZXM6IHsgbmFtZTogeyB0eXBlOiAic3RyaW5nIiB9IH0gfTsKICAgIGNvbnN0IG0gPSBidWlsZE1hbmlmZXN0KAogICAgICAiQG1vbGVjdWxlLWFpL21jcC1zZXJ2ZXIiLAogICAgICAiMS4wLjAiLAogICAgICBbdG9vbCgicHJvdmlzaW9uX3dvcmtzcGFjZSIsICJNYW5hZ2VtZW50OiBwcm92aXNpb24gYSB3b3Jrc3BhY2UuIiwgc2NoZW1hKV0sCiAgICAgIFtdLAogICAgICAiMjAyNi0wNi0yNlQwMDowMDowMC4wMDBaIiwKICAgICk7CiAgICBleHBlY3QobS5tb2Rlcy5tYW5hZ2VtZW50WzBdLmRlc2NyaXB0aW9uKS50b0JlKCJNYW5hZ2VtZW50OiBwcm92aXNpb24gYSB3b3Jrc3BhY2UuIik7CiAgICBleHBlY3QobS5tb2Rlcy5tYW5hZ2VtZW50WzBdLmlucHV0U2NoZW1hKS50b0VxdWFsKHNjaGVtYSk7CiAgfSk7CgogIGl0KCJpcyBhIHB1cmUgdHJhbnNmb3JtIOKAlCBkb2VzIG5vdCBtdXRhdGUgdGhlIGlucHV0IGFycmF5cyIsICgpID0+IHsKICAgIGNvbnN0IG1nbXQgPSBbdG9vbCgiemV0YSIpLCB0b29sKCJhbHBoYSIpXTsKICAgIGJ1aWxkTWFuaWZlc3QoIkBtb2xlY3VsZS1haS9tY3Atc2VydmVyIiwgIjEuMC4wIiwgbWdtdCwgW10sICIyMDI2LTA2LTI2VDAwOjAwOjAwLjAwMFoiKTsKICAgIGV4cGVjdChtZ210Lm1hcCgodCkgPT4gdC5uYW1lKSkudG9FcXVhbChbInpldGEiLCAiYWxwaGEiXSk7IC8vIHVuc29ydGVkLCB1bnRvdWNoZWQKICB9KTsKfSk7CgpkZXNjcmliZSgiZW51bWVyYXRpb24gc291cmNlIChjcmVhdGVTZXJ2ZXIgcmVnaXN0cmF0aW9ucykiLCAoKSA9PiB7CiAgY29uc3QgcHJldiA9IHByb2Nlc3MuZW52Lk1PTEVDVUxFX01DUF9NT0RFOwogIGFmdGVyRWFjaCgoKSA9PiB7CiAgICBpZiAocHJldiA9PT0gdW5kZWZpbmVkKSBkZWxldGUgcHJvY2Vzcy5lbnYuTU9MRUNVTEVfTUNQX01PREU7CiAgICBlbHNlIHByb2Nlc3MuZW52Lk1PTEVDVUxFX01DUF9NT0RFID0gcHJldjsKICB9KTsKCiAgaXQoIm1hbmFnZW1lbnQgbW9kZSBjb21wb3NlcyBhIG5vbi1lbXB0eSwgY29sbGlzaW9uLWZyZWUgdG9vbHNldCIsICgpID0+IHsKICAgIHByb2Nlc3MuZW52Lk1PTEVDVUxFX01DUF9NT0RFID0gIm1hbmFnZW1lbnQiOwogICAgY29uc3Qgc3J2ID0gY3JlYXRlU2VydmVyKCkgYXMgdW5rbm93biBhcyB7IHJlZ2lzdGVyZWRUb29sTmFtZXM6IHN0cmluZ1tdIH07CiAgICBjb25zdCBuYW1lcyA9IHNydi5yZWdpc3RlcmVkVG9vbE5hbWVzOwogICAgZXhwZWN0KG5hbWVzLmxlbmd0aCkudG9CZUdyZWF0ZXJUaGFuKDApOwogICAgZXhwZWN0KG5ldyBTZXQobmFtZXMpLnNpemUpLnRvQmUobmFtZXMubGVuZ3RoKTsgLy8gbm8gZHVwbGljYXRlIHJlZ2lzdHJhdGlvbnMKICAgIGV4cGVjdChuYW1lcykudG9Db250YWluKCJwcm92aXNpb25fd29ya3NwYWNlIik7CiAgICBleHBlY3QobmFtZXMpLm5vdC50b0NvbnRhaW4oImNoYXRfd2l0aF9hZ2VudCIpOyAvLyB3b3Jrc3BhY2Utb25seSB2ZXJiIGFic2VudAogIH0pOwoKICBpdCgid29ya3NwYWNlIG1vZGUgY29tcG9zZXMgYSBub24tZW1wdHksIGNvbGxpc2lvbi1mcmVlIHRvb2xzZXQiLCAoKSA9PiB7CiAgICBwcm9jZXNzLmVudi5NT0xFQ1VMRV9NQ1BfTU9ERSA9ICIiOwogICAgY29uc3Qgc3J2ID0gY3JlYXRlU2VydmVyKCkgYXMgdW5rbm93biBhcyB7IHJlZ2lzdGVyZWRUb29sTmFtZXM6IHN0cmluZ1tdIH07CiAgICBjb25zdCBuYW1lcyA9IHNydi5yZWdpc3RlcmVkVG9vbE5hbWVzOwogICAgZXhwZWN0KG5hbWVzLmxlbmd0aCkudG9CZUdyZWF0ZXJUaGFuKDApOwogICAgZXhwZWN0KG5ldyBTZXQobmFtZXMpLnNpemUpLnRvQmUobmFtZXMubGVuZ3RoKTsKICAgIGV4cGVjdChuYW1lcykudG9Db250YWluKCJjaGF0X3dpdGhfYWdlbnQiKTsKICB9KTsKfSk7Cg==
+/**
+ * Unit tests for the producer-emitted tool manifest (RFC #3285, P1).
+ *
+ * Two contracts are pinned here:
+ *
+ *  (1) ENVELOPE — buildManifest() is pure (no SDK, no I/O), so we assert the
+ *      versioned/per-mode/stamped shape and its determinism directly. This is
+ *      what a consumer parses; it must be stable and version-stamped.
+ *
+ *  (2) ENUMERATION SOURCE — the manifest is derived from createServer()'s
+ *      ACTUAL registrations. We mock the MCP SDK with the same recording shim
+ *      management.test.ts uses (records tool names; throws on duplicates like
+ *      the real SDK) and assert each mode enumerates a non-empty, collision-free
+ *      set. This is the regression gate: if two registrars ever collide the
+ *      server can't be composed, so the manifest cannot describe a phantom.
+ *
+ * The real in-memory-client emit path (Client + InMemoryTransport + tools/list)
+ * runs only at build time against the REAL SDK (node, not jest); it is not
+ * exercised here because the SDK is mocked under jest.
+ */
+
+jest.mock("@modelcontextprotocol/sdk/server/mcp.js", () => ({
+  McpServer: class {
+    registeredToolNames: string[] = [];
+    tool(name: string) {
+      if (this.registeredToolNames.includes(name)) {
+        throw new Error(`Tool ${name} is already registered`);
+      }
+      this.registeredToolNames.push(name);
+    }
+    connect() {
+      return Promise.resolve();
+    }
+  },
+}));
+jest.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
+  StdioServerTransport: class {},
+}));
+
+import { createServer } from "../index.js";
+import { buildManifest, type ManifestTool } from "../manifest.js";
+
+const tool = (name: string, description = "", inputSchema: unknown = {}): ManifestTool => ({
+  name,
+  description,
+  inputSchema,
+});
+
+describe("buildManifest envelope", () => {
+  it("stamps package name + version and the two mode keys", () => {
+    const m = buildManifest(
+      "@molecule-ai/mcp-server",
+      "9.9.9",
+      [tool("provision_workspace")],
+      [tool("chat_with_agent")],
+      "2026-06-26T00:00:00.000Z",
+    );
+    expect(m.name).toBe("@molecule-ai/mcp-server");
+    expect(m.version).toBe("9.9.9");
+    expect(m.generatedAt).toBe("2026-06-26T00:00:00.000Z");
+    expect(Object.keys(m.modes).sort()).toEqual(["management", "workspace"]);
+    expect(m.modes.management.map((t) => t.name)).toEqual(["provision_workspace"]);
+    expect(m.modes.workspace.map((t) => t.name)).toEqual(["chat_with_agent"]);
+  });
+
+  it("sorts tools by name within each mode (deterministic output)", () => {
+    const m = buildManifest(
+      "@molecule-ai/mcp-server",
+      "1.0.0",
+      [tool("zeta"), tool("alpha"), tool("mike")],
+      [tool("yankee"), tool("bravo")],
+      "2026-06-26T00:00:00.000Z",
+    );
+    expect(m.modes.management.map((t) => t.name)).toEqual(["alpha", "mike", "zeta"]);
+    expect(m.modes.workspace.map((t) => t.name)).toEqual(["bravo", "yankee"]);
+  });
+
+  it("preserves description + inputSchema (the verb's signature)", () => {
+    const schema = { type: "object", properties: { name: { type: "string" } } };
+    const m = buildManifest(
+      "@molecule-ai/mcp-server",
+      "1.0.0",
+      [tool("provision_workspace", "Management: provision a workspace.", schema)],
+      [],
+      "2026-06-26T00:00:00.000Z",
+    );
+    expect(m.modes.management[0].description).toBe("Management: provision a workspace.");
+    expect(m.modes.management[0].inputSchema).toEqual(schema);
+  });
+
+  it("is a pure transform — does not mutate the input arrays", () => {
+    const mgmt = [tool("zeta"), tool("alpha")];
+    buildManifest("@molecule-ai/mcp-server", "1.0.0", mgmt, [], "2026-06-26T00:00:00.000Z");
+    expect(mgmt.map((t) => t.name)).toEqual(["zeta", "alpha"]); // unsorted, untouched
+  });
+});
+
+describe("enumeration source (createServer registrations)", () => {
+  const prev = process.env.MOLECULE_MCP_MODE;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.MOLECULE_MCP_MODE;
+    else process.env.MOLECULE_MCP_MODE = prev;
+  });
+
+  it("management mode composes a non-empty, collision-free toolset", () => {
+    process.env.MOLECULE_MCP_MODE = "management";
+    const srv = createServer() as unknown as { registeredToolNames: string[] };
+    const names = srv.registeredToolNames;
+    expect(names.length).toBeGreaterThan(0);
+    expect(new Set(names).size).toBe(names.length); // no duplicate registrations
+    expect(names).toContain("provision_workspace");
+    expect(names).not.toContain("chat_with_agent"); // workspace-only verb absent
+  });
+
+  it("workspace mode composes a non-empty, collision-free toolset", () => {
+    process.env.MOLECULE_MCP_MODE = "";
+    const srv = createServer() as unknown as { registeredToolNames: string[] };
+    const names = srv.registeredToolNames;
+    expect(names.length).toBeGreaterThan(0);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain("chat_with_agent");
+  });
+});
