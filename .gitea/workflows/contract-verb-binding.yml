@@ -14,14 +14,13 @@ name: contract-verb-binding
 #
 #   2. vendor-sync — byte-compares our vendored
 #      contracts/mcp-plugin-delivery.contract.json against molecule-core's
-#      canonical so the vendored copy can't silently drift. Needs a cross-repo
-#      read token; fail-closed on trusted contexts, soft-skip on fork PRs.
+#      canonical so the vendored copy can't silently drift. molecule-core is
+#      PUBLIC, so this needs NO secret: it reads the canonical over the public
+#      raw endpoint and is fail-closed on fetch-error or drift, on every
+#      context incl. fork PRs.
 #
-# Kept in a SEPARATE workflow from ci.yml so:
-#   • the producer-binding unit test is added to the gating set without
-#     editing the existing CI job, and
-#   • the cross-repo sync-check (which needs a secret) can soft-skip on fork
-#     PRs without affecting the main test job.
+# Kept in a SEPARATE workflow from ci.yml so the producer-binding unit test is
+# added to the gating set without editing the existing CI job.
 #
 # CONTRACT SHAPE: the verb SSOT is the SINGULAR `required_tool` (a string),
 # landed on core main by core#3280. The vendored copy is byte-identical to
@@ -70,25 +69,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Byte-compare vendored contract against core canonical
         env:
+          # molecule-core is public -> no secret required. CONTRACT_SYNC_TOKEN
+          # is sent only if present (rate-limit headroom / future-private core).
+          # Fail-closed on fetch error or byte drift regardless.
           CONTRACT_SYNC_TOKEN: ${{ secrets.CONTRACT_SYNC_TOKEN }}
           API_ROOT: ${{ github.server_url }}/api/v1
         run: |
           set -euo pipefail
-          case "${{ github.event_name }}" in
-            push|schedule|workflow_dispatch)
-              IS_TRUSTED=true
-              ;;
-            pull_request)
-              if [ "${{ github.event.pull_request.head.repo.fork }}" = "false" ]; then
-                IS_TRUSTED=true
-              else
-                IS_TRUSTED=false
-              fi
-              ;;
-            *)
-              IS_TRUSTED=true
-              ;;
-          esac
-          export IS_TRUSTED
           export CORE_REF=main
           bash .gitea/scripts/check-contract-vendor-sync.sh
