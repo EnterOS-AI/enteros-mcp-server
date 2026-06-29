@@ -89,7 +89,7 @@ export async function handleGetRemoteAgentSetupCommand(params: {
     ``,
     `WORKSPACE_ID=${w.id} \\`,
     `PLATFORM_URL=${targetUrl} \\`,
-    `python3 -c "from molecule_agent import RemoteAgentClient; \\`,
+    `python3 -c "from molecule_external_workspace import RemoteAgentClient; \\`,
     `  c = RemoteAgentClient.register_from_env(); \\`,
     `  c.pull_secrets(); \\`,
     `  c.run_heartbeat_loop()"`,
@@ -155,7 +155,7 @@ export function registerRemoteAgentTools(srv: McpServer) {
 
   srv.tool(
     "get_remote_agent_setup_command",
-    "Build a one-shot bash command an operator can paste into a remote machine to register an agent against this Molecule AI platform. Returns a string like `WORKSPACE_ID=... PLATFORM_URL=... python3 -m molecule_agent.bootstrap`. Pass platform_url_override when the MCP server's PLATFORM_URL is localhost (the agent will live on a different host and needs the platform's public URL). The workspace must exist and be runtime='external'.",
+    "Build a one-shot bash command an operator can paste into a remote machine to register an agent against this Molecule AI platform. Returns a string like `WORKSPACE_ID=... PLATFORM_URL=... python3 -m molecule_external_workspace.bootstrap`. Pass platform_url_override when the MCP server's PLATFORM_URL is localhost (the agent will live on a different host and needs the platform's public URL). The workspace must exist and be runtime='external'.",
     {
       workspace_id: z.string(),
       platform_url_override: z.string().optional(),
