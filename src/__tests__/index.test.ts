@@ -1435,7 +1435,7 @@ describe("Phase 30 remote-agent tools", () => {
     expect(body.workspace_name).toBe("remote-1");
     expect(body.setup_command).toContain("WORKSPACE_ID=ws-ext");
     expect(body.setup_command).toContain("PLATFORM_URL=");
-    expect(body.setup_command).toContain("molecule_agent");
+    expect(body.setup_command).toContain("molecule_external_workspace");
   });
 
   test("handleCheckRemoteAgentFreshness fresh when heartbeat is recent", async () => {
