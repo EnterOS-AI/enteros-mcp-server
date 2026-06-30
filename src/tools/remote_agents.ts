@@ -85,7 +85,7 @@ export async function handleGetRemoteAgentSetupCommand(params: {
   const setupCmd = [
     `# Run on the remote machine where the agent will live.`,
     `# Requires Python 3.11+ and bash (the SDK invokes setup.sh via bash).`,
-    `pip install molecule-ai-sdk  # (or: pip install -e <molecule-checkout>/molecule-sdk-python)`,
+    `pip install molecule-ai-sdk  # (or: pip install -e <molecule-checkout>/molecule-ai-sdk)`,
     ``,
     `WORKSPACE_ID=${w.id} \\`,
     `PLATFORM_URL=${targetUrl} \\`,
@@ -95,7 +95,7 @@ export async function handleGetRemoteAgentSetupCommand(params: {
     `  c.run_heartbeat_loop()"`,
     ``,
     `# For a richer demo (logging, graceful shutdown) see`,
-    `# examples/remote-agent/run.py in the molecule-sdk-python checkout.`,
+    `# examples/remote-agent/run.py in the molecule-ai-sdk checkout.`,
     `# The agent will register, mint its bearer token (cached at`,
     `# ~/.molecule/${w.id}/.auth_token), pull secrets, then heartbeat.`,
   ].join("\n");

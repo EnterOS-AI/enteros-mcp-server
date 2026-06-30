@@ -97,7 +97,7 @@ The workflow:
 ### APIs Connected
 
 The server connects to the Molecule AI platform REST API via its own TypeScript
-client (`src/api.ts`). It does not use the Python SDK (`molecule-sdk-python`) —
+client (`src/api.ts`). It does not use the Python SDK (`molecule-ai-sdk`) —
 the Python SDK is for remote agents that run outside the platform; this server
 runs as an MCP bridge *on* the operator side.
 

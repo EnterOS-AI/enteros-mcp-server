@@ -204,7 +204,7 @@ tool generates a bash one-liner:
 
 ```bash
 pip install molecule-ai-sdk
-WORKSPACE_ID=... PLATFORM_URL=... python3 -c "from molecule_agent import RemoteAgentClient; ..."
+WORKSPACE_ID=... PLATFORM_URL=... python3 -c "from molecule_external_workspace import RemoteAgentClient; ..."
 ```
 
 See the full tool registry in `CLAUDE.md` for all 87 tools.
