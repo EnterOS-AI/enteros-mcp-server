@@ -65,7 +65,7 @@ Every tool must have a JSON Schema (Draft 7) `inputSchema`. Keep it minimal — 
 
 ## Release Process
 
-Releases are automated via GitHub Actions on every tag matching `v*`.
+Releases are automated via Gitea Actions on every tag matching `v*`.
 
 ### Cutting a Release
 
@@ -84,11 +84,13 @@ git tag vx.y.z
 git push origin main --tags
 ```
 
-The workflow:
-1. Pushes `v*` tag → triggers `publish.yml` workflow
-2. Workflow runs `npm install`, `npm run build`, `npm test`
-3. On success: publishes to npm (`npm publish --access public`)
-4. Creates a GitHub Release with the tag
+The workflow (`.gitea/workflows/publish.yml`):
+1. Pushes `v*` tag → triggers the `publish.yml` Gitea Actions workflow
+2. Workflow runs `npm install`, `npm run build:manifest`, `npm test`
+3. On success: publishes to the **private Gitea npm registry** for the
+   `@molecule-ai` scope (`npm publish --registry
+   https://git.moleculesai.app/api/packages/molecule-ai/npm/`), authenticating
+   with `MOL_PACKAGE_TOKEN` fetched from the Infisical SSOT — **not** public npm
 
 **Do not publish manually.** Let the tag push flow handle it.
 
