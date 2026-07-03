@@ -16,7 +16,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { toMcpResult } from "../../api.js";
+import { toMcpResult, isApiError } from "../../api.js";
 import { validate } from "../../utils/validation.js";
 import { mgmtCall, mgmtGet, defaultOrgId } from "./client.js";
 import { registerCpAdminTools } from "./cp_admin.js";
@@ -161,6 +161,46 @@ const ImportBundleSchema = z.object({
 
 const ListOrgEventsSchema = z.object({
   workspace_id: z.string().optional().describe("Filter to one workspace, or omit for the whole org"),
+});
+
+// Conversation history -----------------------------------------------------
+
+// On-demand history page size. The agent-facing tool caps well below the
+// tenant endpoint's 1000-row ceiling: this is a PULL surface the agent calls
+// deliberately when it wants context, NOT a bulk export, so a small default +
+// a modest max keeps a single call from dumping an entire chat log into the
+// model's context window (the exact anti-pattern the direct-inject history
+// removal — ws-runtime #222 / openclaw #139 / canvas #3416 — exists to kill).
+// Callers walk further back with `before_cursor`, one page at a time.
+const HISTORY_DEFAULT_LIMIT = 50;
+const HISTORY_MAX_LIMIT = 200;
+
+const GetConversationHistorySchema = z.object({
+  workspace_id: z
+    .string()
+    .optional()
+    .describe(
+      "Workspace UUID whose persisted conversation history to read. Defaults to " +
+        "the caller's own workspace (MOLECULE_WORKSPACE_ID) when omitted. Must " +
+        "belong to the caller's org — the tenant host authorizes it server-side.",
+    ),
+  limit: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      `Page size (default ${HISTORY_DEFAULT_LIMIT}). Values above ${HISTORY_MAX_LIMIT} ` +
+        `are clamped to ${HISTORY_MAX_LIMIT} and values below 1 to 1, so a single ` +
+        "call can never dump the whole log. Messages are returned oldest-first.",
+    ),
+  before_cursor: z
+    .string()
+    .optional()
+    .describe(
+      "Pagination cursor: an RFC3339 timestamp; returns only messages strictly " +
+        "OLDER than it. Pass the `next_before_cursor` from the previous page to " +
+        "walk further back through history.",
+    ),
 });
 
 // ---------------------------------------------------------------------------
@@ -378,6 +418,77 @@ export async function handleListOrgEvents(args: unknown) {
 
 export async function handleListPendingApprovals() {
   return toMcpResult(await mgmtGet("/approvals/pending"));
+}
+
+// Conversation history -----------------------------------------------------
+
+// get_conversation_history (RFC #2945 chat-history + the direct-inject-history
+// removal, ws-runtime #222 / openclaw #139 / canvas #3416). The ONLY
+// agent-facing path to older conversation context: instead of force-injecting
+// history into the runtime prompt at ingest, the agent CHOOSES to pull a page
+// on demand from the PERSISTED tenant store (activity_logs, where canvas chat
+// lands via persistUserMessageAtIngest). Reads the tenant workspace-server
+// endpoint `GET /workspaces/:id/chat-history?limit=&before_ts=` (server-side
+// activity_logs → ChatMessage adapter; same wsAuth chain the Org API Key
+// already satisfies). Org/workspace scoping is enforced by the tenant host
+// (WorkspaceAuth + X-Molecule-Org-Id), so a caller can only read history for a
+// workspace in its own org.
+export async function handleGetConversationHistory(args: unknown) {
+  const p = validate(args, GetConversationHistorySchema);
+
+  // workspace_id defaults to the caller's own workspace. Fail closed (no
+  // fetch) with a clean INVALID_ARGUMENTS when neither the param nor the
+  // env is available, rather than firing a request that can't name a target.
+  const workspaceId = p.workspace_id || process.env.MOLECULE_WORKSPACE_ID;
+  if (!workspaceId) {
+    return toMcpResult({
+      error: "INVALID_ARGUMENTS",
+      detail:
+        "workspace_id is required — pass the workspace UUID whose conversation " +
+        "history you want, or set MOLECULE_WORKSPACE_ID so it defaults to the " +
+        "caller's own workspace.",
+    });
+  }
+
+  // Clamp to the agent-facing bounds (belt-and-suspenders with the zod max):
+  // never let a single pull exceed HISTORY_MAX_LIMIT rows.
+  let limit = p.limit ?? HISTORY_DEFAULT_LIMIT;
+  if (limit > HISTORY_MAX_LIMIT) limit = HISTORY_MAX_LIMIT;
+  if (limit < 1) limit = 1;
+
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  if (p.before_cursor) qs.set("before_ts", p.before_cursor);
+
+  const data = await mgmtGet(
+    `/workspaces/${encodeURIComponent(workspaceId)}/chat-history?${qs.toString()}`,
+  );
+  if (isApiError(data)) {
+    // Auth/HTTP/unreachable — surface the structured error unchanged.
+    return toMcpResult(data);
+  }
+
+  // The store returns messages OLDEST-first within a page and
+  // reached_end=true once it has hit the start of history. To walk further
+  // back the next `before_ts` is the OLDEST message's timestamp in this page;
+  // expose it as next_before_cursor so the agent paginates without having to
+  // reason about the store's ordering. Omitted at end-of-history.
+  const body = data as {
+    messages?: Array<{ timestamp?: string }>;
+    reached_end?: boolean;
+  };
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const reachedEnd = body.reached_end === true;
+  const nextBeforeCursor =
+    !reachedEnd && messages.length > 0 ? messages[0]?.timestamp : undefined;
+
+  return toMcpResult({
+    workspace_id: workspaceId,
+    messages,
+    count: messages.length,
+    reached_end: reachedEnd,
+    next_before_cursor: nextBeforeCursor,
+  });
 }
 
 // create_approval (mcp-server#61) — raise an approval-kind request addressed
@@ -649,6 +760,32 @@ export function registerManagementTools(srv: McpServer) {
     "Management: list pending approval requests across the org's workspaces.",
     {},
     handleListPendingApprovals,
+  );
+
+  // --- Conversation history (on-demand, paginated) ---
+  srv.tool(
+    "get_conversation_history",
+    "Management: read a page of a workspace's PERSISTED conversation history " +
+      "(activity_logs chat) on demand. This is the pull-based alternative to " +
+      "force-injecting history into the prompt: call it when you need older " +
+      "context. Returns messages oldest-first plus next_before_cursor for " +
+      "paging further back. Scoped to the caller's org (tenant host authorizes).",
+    {
+      workspace_id: z
+        .string()
+        .optional()
+        .describe("Workspace UUID (defaults to the caller's own MOLECULE_WORKSPACE_ID)"),
+      limit: z
+        .number()
+        .int()
+        .optional()
+        .describe(`Page size (default ${HISTORY_DEFAULT_LIMIT}, clamped to ${HISTORY_MAX_LIMIT} max)`),
+      before_cursor: z
+        .string()
+        .optional()
+        .describe("RFC3339 cursor (next_before_cursor from the prior page) to page backward"),
+    },
+    handleGetConversationHistory,
   );
   srv.tool(
     "create_approval",

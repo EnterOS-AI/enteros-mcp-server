@@ -223,6 +223,7 @@ export {
   handleMintWorkspaceToken,
   handleGetOrgPluginAllowlist,
   handleSetOrgPluginAllowlist,
+  handleGetConversationHistory,
 } from "./tools/management/index.js";
 export {
   registerIssueTools,
