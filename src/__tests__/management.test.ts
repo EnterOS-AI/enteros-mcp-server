@@ -61,6 +61,7 @@ import {
   handleExportBundle,
   handleListOrgEvents,
   handleCreateApproval as mgmtCreateApproval,
+  handleGetConversationHistory,
 } from "../tools/management/index.js";
 import {
   handleRecreateWorkspace,
@@ -795,6 +796,7 @@ describe("registration + mode", () => {
       "get_org_plugin_allowlist", "set_org_plugin_allowlist",
       "export_bundle", "import_bundle",
       "list_org_events", "list_pending_approvals", "create_approval",
+      "get_conversation_history",
     ]) {
       expect(names).toContain(expected);
     }
@@ -820,6 +822,107 @@ describe("registration + mode", () => {
   it("createServer in workspace mode composes without tool-name collisions", () => {
     process.env.MOLECULE_MCP_MODE = "";
     expect(() => createServer()).not.toThrow();
+  });
+});
+
+describe("get_conversation_history (on-demand paginated history)", () => {
+  const HISTORY_BODY = {
+    messages: [
+      { id: "m1", role: "user", content: "first", timestamp: "2026-05-01T00:00:00Z" },
+      { id: "m2", role: "agent", content: "reply", timestamp: "2026-05-01T00:00:05Z" },
+    ],
+    reached_end: false,
+  };
+
+  it("GETs /workspaces/:id/chat-history with the Org API Key auth headers", async () => {
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetConversationHistory({ workspace_id: "w1" });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w1/chat-history?limit=50`);
+    expect(init.method).toBe("GET");
+    const h = headersOf(init);
+    expect(h.Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(h["X-Molecule-Org-Id"]).toBe(ORG_ID);
+  });
+
+  it("defaults limit to 50 and clamps an over-max limit to 200", async () => {
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetConversationHistory({ workspace_id: "w1", limit: 9999 });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w1/chat-history?limit=200`);
+  });
+
+  it("passes before_cursor through as the before_ts query param", async () => {
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetConversationHistory({
+      workspace_id: "w1",
+      limit: 10,
+      before_cursor: "2026-05-01T00:00:00Z",
+    });
+    expect(lastCall(f).url).toBe(
+      `${HOST}/workspaces/w1/chat-history?limit=10&before_ts=2026-05-01T00%3A00%3A00Z`,
+    );
+  });
+
+  it("returns a next_before_cursor (oldest ts) when more history remains", async () => {
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetConversationHistory({ workspace_id: "w1" }));
+    expect(res.count).toBe(2);
+    expect(res.reached_end).toBe(false);
+    // messages are oldest-first; the cursor to page further back is the oldest.
+    expect(res.next_before_cursor).toBe("2026-05-01T00:00:00Z");
+  });
+
+  it("omits next_before_cursor at end-of-history (reached_end)", async () => {
+    const f = mockFetch({ messages: HISTORY_BODY.messages, reached_end: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetConversationHistory({ workspace_id: "w1" }));
+    expect(res.reached_end).toBe(true);
+    expect(res.next_before_cursor).toBeUndefined();
+  });
+
+  it("defaults workspace_id to MOLECULE_WORKSPACE_ID when omitted", async () => {
+    process.env.MOLECULE_WORKSPACE_ID = "own-ws";
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetConversationHistory({});
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/own-ws/chat-history?limit=50`);
+  });
+
+  it("fails closed (no fetch) with INVALID_ARGUMENTS when no workspace can be resolved", async () => {
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetConversationHistory({}));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("returns AUTH_ERROR (no fetch) when the Org API Key is absent", async () => {
+    delete process.env.MOLECULE_ORG_API_KEY;
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetConversationHistory({ workspace_id: "w1" }));
+    expect(res.error).toBe("AUTH_ERROR");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("surfaces an upstream HTTP error unchanged (no cursor synthesis)", async () => {
+    const f = mockFetch({ error: "boom" }, false, 502);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleGetConversationHistory({ workspace_id: "w1" }));
+    expect(res.error).toBe("HTTP 502");
+    expect(res.next_before_cursor).toBeUndefined();
+  });
+
+  it("escapes workspace_id in the chat-history path", async () => {
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetConversationHistory({ workspace_id: "w/1" });
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/w%2F1/chat-history?limit=50`);
   });
 });
 
