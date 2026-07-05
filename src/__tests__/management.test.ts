@@ -54,6 +54,7 @@ import {
 import {
   handleProvisionWorkspace as mgmtProvisionWorkspace,
   handleInstallPlugin as mgmtInstallPlugin,
+  handleListAvailablePlugins as mgmtListAvailablePlugins,
   handleListWorkspaces as mgmtListWorkspaces,
   handleGetWorkspace,
   handleRestartWorkspace,
@@ -427,6 +428,67 @@ describe("install_plugin (management self-install, §5.2)", () => {
     await mgmtInstallPlugin({ workspace_id: "a/../b", source: "local://p" });
     const { url } = lastCall(f);
     expect(url).toBe(`${HOST}/workspaces/${encodeURIComponent("a/../b")}/plugins`);
+  });
+});
+
+describe("list_available_plugins (management marketplace discovery, §5.2)", () => {
+  it("defaults to the caller's own workspace runtime filter (SELF)", async () => {
+    process.env.MOLECULE_WORKSPACE_ID = "w-self";
+    const f = mockFetch([{ name: "lark-channel", description: "Lark/Feishu channel bridge", kind: "channel" }]);
+    global.fetch = f as unknown as typeof fetch;
+    const res = await mgmtListAvailablePlugins({});
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w-self/plugins/available`);
+    expect(init.method).toBe("GET");
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+    const entries = parsed(res);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].name).toBe("lark-channel");
+    expect(entries[0].kind).toBe("channel");
+  });
+
+  it("uses an explicit workspace_id when given (escaped)", async () => {
+    const f = mockFetch([]);
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtListAvailablePlugins({ workspace_id: "a/../b" });
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/${encodeURIComponent("a/../b")}/plugins/available`);
+  });
+
+  it("degrades to the unfiltered registry when no workspace id is resolvable", async () => {
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    const f = mockFetch([]);
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtListAvailablePlugins({});
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/plugins`);
+  });
+
+  it("derives local://<name> install sources from each entry's own name — no hardcoded catalog", async () => {
+    process.env.MOLECULE_WORKSPACE_ID = "w-self";
+    const f = mockFetch([
+      { name: "lark-channel", kind: "channel" },
+      { name: "molecule-dev" },
+      { name: "already-sourced", source: "gitea://molecule-ai/x#main" },
+      { name: "" },
+    ]);
+    global.fetch = f as unknown as typeof fetch;
+    const res = await mgmtListAvailablePlugins({});
+    const entries = parsed(res);
+    expect(entries[0].source).toBe("local://lark-channel");
+    expect(entries[1].source).toBe("local://molecule-dev");
+    // A server-provided source is authoritative — never overwritten.
+    expect(entries[2].source).toBe("gitea://molecule-ai/x#main");
+    // A nameless entry can't derive a handle; passed through untouched.
+    expect(entries[3].source).toBeUndefined();
+  });
+
+  it("passes a non-array (error envelope) response through untouched", async () => {
+    process.env.MOLECULE_WORKSPACE_ID = "w-self";
+    const f = mockFetch({ error: "HTTP 503", detail: "down" });
+    global.fetch = f as unknown as typeof fetch;
+    const res = await mgmtListAvailablePlugins({});
+    expect(parsed(res).error).toBe("HTTP 503");
   });
 });
 
@@ -850,6 +912,7 @@ describe("registration + mode", () => {
       "list_org_templates", "create_org_from_template", "list_templates", "import_template",
       "mint_org_token", "list_org_tokens", "revoke_org_token", "mint_workspace_token",
       "get_org_plugin_allowlist", "set_org_plugin_allowlist", "install_plugin",
+      "list_available_plugins",
       "export_bundle", "import_bundle",
       "list_org_events", "list_pending_approvals", "create_approval",
       "get_conversation_history",

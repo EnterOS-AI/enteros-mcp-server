@@ -192,6 +192,57 @@ export async function handleInstallPlugin(args: unknown) {
   );
 }
 
+// Plugin discovery (self-reprovision §5.2 companion) -------------------------
+
+// list_available_plugins on the MANAGEMENT surface. The catalog it reads is
+// the tenant plugin registry, which is DERIVED from the marketplace registry
+// SSOT (molecule-core manifest.json `plugins` — where plugin devs register;
+// clone-manifest.sh materializes those entries into the tenant registry dir
+// that GET /plugins and GET /workspaces/:id/plugins/available serve). Nothing
+// here hardcodes a plugin list: entries, descriptions, kinds and runtimes all
+// flow from each plugin's registered plugin.yaml.
+//
+// workspace_id defaults to the CALLER'S OWN workspace so the list arrives
+// pre-filtered to plugins compatible with the caller's runtime. With no id at
+// all (env unset), it degrades to the unfiltered org-wide registry rather
+// than failing — a broader read is safe for discovery, unlike install.
+const ListAvailablePluginsMgmtSchema = z.object({
+  workspace_id: z
+    .string()
+    .optional()
+    .describe(
+      "Workspace UUID whose runtime the catalog is filtered for. Defaults to the caller's " +
+        "own workspace (MOLECULE_WORKSPACE_ID); with neither set, returns the unfiltered registry.",
+    ),
+});
+
+/**
+ * Ensure every catalog entry carries an installable `source` handle. Registry
+ * entries are served from the tenant's marketplace-derived registry dir, so
+ * their canonical install handle is `local://<name>` — derived from the
+ * entry's own registered name, never a hardcoded list. Entries that already
+ * carry a source (future server versions) are passed through untouched.
+ */
+export function withInstallSources(entries: unknown): unknown {
+  if (!Array.isArray(entries)) return entries;
+  return entries.map((e) => {
+    if (e === null || typeof e !== "object" || Array.isArray(e)) return e;
+    const rec = e as Record<string, unknown>;
+    if (typeof rec.source === "string" && rec.source !== "") return rec;
+    if (typeof rec.name !== "string" || rec.name === "") return rec;
+    return { ...rec, source: `local://${rec.name}` };
+  });
+}
+
+export async function handleListAvailablePlugins(args: unknown) {
+  const p = validate(args, ListAvailablePluginsMgmtSchema);
+  const workspaceId = p.workspace_id || process.env.MOLECULE_WORKSPACE_ID;
+  const res = workspaceId
+    ? await mgmtGet(`/workspaces/${encodeURIComponent(workspaceId)}/plugins/available`)
+    : await mgmtGet("/plugins");
+  return toMcpResult(withInstallSources(res));
+}
+
 // Plugin allowlist ---------------------------------------------------------
 
 const GetOrgPluginAllowlistSchema = z.object({
@@ -800,6 +851,26 @@ export function registerManagementTools(srv: McpServer) {
         .describe("Restart the workspace to activate the plugin (default true); false = record + deliver only"),
     },
     handleInstallPlugin,
+  );
+
+  // --- Plugin discovery (self-reprovision §5.2 companion) ---
+  srv.tool(
+    "list_available_plugins",
+    "Management: list installable plugins from the marketplace catalog (name, description, " +
+      "kind, source, supported runtimes). Defaults to YOUR OWN workspace's runtime filter " +
+      "when workspace_id is omitted. Pass an entry's `source` to install_plugin to install " +
+      "it. Channel plugins (kind=channel — e.g. the Lark/Feishu channel bridge) connect " +
+      "external chat channels to a workspace; consult this catalog FIRST when a user asks " +
+      "to connect a channel or add a capability, instead of asking them for setup details.",
+    {
+      workspace_id: z
+        .string()
+        .optional()
+        .describe(
+          "Workspace UUID whose runtime the catalog is filtered for (defaults to the caller's own MOLECULE_WORKSPACE_ID)",
+        ),
+    },
+    handleListAvailablePlugins,
   );
 
   // --- Plugin allowlist ---
