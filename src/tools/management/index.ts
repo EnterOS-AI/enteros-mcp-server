@@ -135,6 +135,63 @@ const MintWorkspaceTokenSchema = z.object({
   workspace_id: z.string().describe("Workspace UUID to mint a bearer token for"),
 });
 
+// Plugin install (self-reprovision §5.2) -------------------------------------
+
+// install_plugin on the MANAGEMENT surface. The tenant endpoint
+// (POST /workspaces/:id/plugins, WorkspaceAuth) is the sanctioned declare/
+// install path: it resolve+stages the source FIRST (a bad repo/name/ref
+// fails loud with a 4xx before anything is recorded), delivers the tree
+// into the workspace container, records the (name, source) pair in
+// workspace_plugins — which desiredPluginSources() unions into
+// MOLECULE_DECLARED_PLUGINS on EVERY future (re)provision, so the install
+// is durable — and by default schedules the existing restart flow
+// (WorkspaceHandler.RestartByID) so boot-install picks the plugin up.
+//
+// workspace_id defaults to the CALLER'S OWN workspace (MOLECULE_WORKSPACE_ID),
+// making agent self-install the zero-config case. Authorization is enforced
+// server-side by the tenant WorkspaceAuth chain: an Org API Key (this
+// management server's credential) may target any workspace in its org; a
+// per-workspace bearer only validates against its own :id — so a normal
+// agent can only ever install onto ITSELF.
+const InstallPluginMgmtSchema = z.object({
+  workspace_id: z
+    .string()
+    .optional()
+    .describe("Target workspace UUID. Defaults to the caller's own workspace (MOLECULE_WORKSPACE_ID) — the self-install case."),
+  source: z
+    .string()
+    .describe(
+      "Plugin source: 'gitea://owner/repo[/subpath][#ref]' (private Gitea), " +
+        "'local://<name>' (platform registry), 'github://owner/repo[#ref]', or any registered scheme.",
+    ),
+  restart: z
+    .boolean()
+    .optional()
+    .describe(
+      "Restart the workspace after install so boot-install activates the plugin (default true). " +
+        "false = record + deliver only; the plugin activates on the next restart.",
+    ),
+});
+
+export async function handleInstallPlugin(args: unknown) {
+  const p = validate(args, InstallPluginMgmtSchema);
+  // Default to SELF — same fail-closed pattern as get_conversation_history.
+  const workspaceId = p.workspace_id || process.env.MOLECULE_WORKSPACE_ID;
+  if (!workspaceId) {
+    return toMcpResult({
+      error: "INVALID_ARGUMENTS",
+      detail:
+        "workspace_id is required — pass the target workspace UUID, or set " +
+        "MOLECULE_WORKSPACE_ID so it defaults to the caller's own workspace.",
+    });
+  }
+  const body: Record<string, unknown> = { source: p.source };
+  if (p.restart !== undefined) body.restart = p.restart;
+  return toMcpResult(
+    await mgmtCall("POST", `/workspaces/${encodeURIComponent(workspaceId)}/plugins`, body),
+  );
+}
+
 // Plugin allowlist ---------------------------------------------------------
 
 const GetOrgPluginAllowlistSchema = z.object({
@@ -714,6 +771,35 @@ export function registerManagementTools(srv: McpServer) {
     "Management: mint a workspace-scoped bearer token (e.g. for a remote/external agent).",
     { workspace_id: z.string().describe("Workspace UUID") },
     handleMintWorkspaceToken,
+  );
+
+  // --- Plugin install (self-reprovision §5.2) ---
+  srv.tool(
+    "install_plugin",
+    "Management: install a plugin into a workspace — defaults to YOUR OWN workspace when " +
+      "workspace_id is omitted (self-install). The tenant validates the source resolves " +
+      "(fails loud on a bad repo/name/ref), records it in the workspace's durable plugin set " +
+      "(it survives every future reprovision), and by default RESTARTS the workspace so " +
+      "boot-install activates it. SELF-INSTALL WARNING: with restart on, YOUR OWN workspace " +
+      "reprovisions moments after this returns — your current session ends; on wake you " +
+      "receive a self-reprovision note listing the new plugin(s): proactively tell the user " +
+      "what you can now do, then resume prior work.",
+    {
+      workspace_id: z
+        .string()
+        .optional()
+        .describe("Target workspace UUID (defaults to the caller's own MOLECULE_WORKSPACE_ID)"),
+      source: z
+        .string()
+        .describe(
+          "Plugin source: 'gitea://owner/repo[/subpath][#ref]', 'local://<name>', 'github://owner/repo[#ref]', or any registered scheme",
+        ),
+      restart: z
+        .boolean()
+        .optional()
+        .describe("Restart the workspace to activate the plugin (default true); false = record + deliver only"),
+    },
+    handleInstallPlugin,
   );
 
   // --- Plugin allowlist ---

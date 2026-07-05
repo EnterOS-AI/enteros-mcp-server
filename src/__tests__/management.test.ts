@@ -53,6 +53,7 @@ import {
 } from "../index.js";
 import {
   handleProvisionWorkspace as mgmtProvisionWorkspace,
+  handleInstallPlugin as mgmtInstallPlugin,
   handleListWorkspaces as mgmtListWorkspaces,
   handleGetWorkspace,
   handleRestartWorkspace,
@@ -371,6 +372,61 @@ describe("token tools", () => {
     global.fetch = f as unknown as typeof fetch;
     await expect(handleMintOrgToken({ name: "x".repeat(101) })).rejects.toThrow();
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("install_plugin (management self-install, §5.2)", () => {
+  it("POSTs the source to /workspaces/:id/plugins with the Org API Key", async () => {
+    const f = mockFetch({ status: "installed", plugin: "lark-channel-molecule", restarting: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = await mgmtInstallPlugin({
+      workspace_id: "w-target",
+      source: "gitea://molecule-ai/lark-channel-molecule#main",
+    });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w-target/plugins`);
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body as string);
+    expect(body.source).toBe("gitea://molecule-ai/lark-channel-molecule#main");
+    // restart omitted → not sent; the tenant default (restart on) applies.
+    expect(body.restart).toBeUndefined();
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(headersOf(init)["X-Molecule-Org-Id"]).toBe(ORG_ID);
+    expect(parsed(res).status).toBe("installed");
+  });
+
+  it("defaults workspace_id to the caller's own MOLECULE_WORKSPACE_ID (self-install)", async () => {
+    process.env.MOLECULE_WORKSPACE_ID = "w-self";
+    const f = mockFetch({ status: "installed", plugin: "p", restarting: true });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtInstallPlugin({ source: "local://p" });
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w-self/plugins`);
+  });
+
+  it("passes restart:false through to the tenant body", async () => {
+    const f = mockFetch({ status: "installed", plugin: "p", restarting: false });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtInstallPlugin({ workspace_id: "w1", source: "local://p", restart: false });
+    const { init } = lastCall(f);
+    expect(JSON.parse(init.body as string).restart).toBe(false);
+  });
+
+  it("fails closed with INVALID_ARGUMENTS when no workspace_id and no MOLECULE_WORKSPACE_ID", async () => {
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    const f = mockFetch({ status: "installed" });
+    global.fetch = f as unknown as typeof fetch;
+    const res = await mgmtInstallPlugin({ source: "local://p" });
+    expect(parsed(res).error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("escapes the workspace id path segment", async () => {
+    const f = mockFetch({ status: "installed" });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtInstallPlugin({ workspace_id: "a/../b", source: "local://p" });
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/${encodeURIComponent("a/../b")}/plugins`);
   });
 });
 
@@ -793,7 +849,7 @@ describe("registration + mode", () => {
       "set_workspace_budget", "set_llm_billing_mode",
       "list_org_templates", "create_org_from_template", "list_templates", "import_template",
       "mint_org_token", "list_org_tokens", "revoke_org_token", "mint_workspace_token",
-      "get_org_plugin_allowlist", "set_org_plugin_allowlist",
+      "get_org_plugin_allowlist", "set_org_plugin_allowlist", "install_plugin",
       "export_bundle", "import_bundle",
       "list_org_events", "list_pending_approvals", "create_approval",
       "get_conversation_history",

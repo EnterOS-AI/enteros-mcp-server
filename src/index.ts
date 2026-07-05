@@ -200,11 +200,12 @@ export {
 // Management registry — the cross-org / org-lifecycle management surface
 // (Org API Key, tenant host). Enabled by MOLECULE_MCP_MODE=management; see
 // createServer() and tools/management/. Exported for tests + SDK consumers.
-// Note: handleProvisionWorkspace + handleListPendingApprovals are NOT
-// re-exported here — those identifiers are already owned by the legacy
-// workspaces/approvals export blocks above. The management variants are
-// reachable via the "./tools/management/index.js" module path and are
-// wired into the server through registerManagementTools.
+// Note: handleProvisionWorkspace + handleListPendingApprovals +
+// handleInstallPlugin are NOT re-exported here — those identifiers are
+// already owned by the legacy workspaces/approvals/plugins export blocks
+// above. The management variants are reachable via the
+// "./tools/management/index.js" module path and are wired into the server
+// through registerManagementTools.
 export {
   registerManagementTools,
   handleDeprovisionWorkspace,
