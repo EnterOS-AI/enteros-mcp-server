@@ -109,6 +109,11 @@ beforeEach(() => {
   process.env.MOLECULE_ORG_ID = ORG_ID;
   delete process.env.MOLECULE_MCP_MODE;
   delete process.env.CP_ADMIN_API_TOKEN;
+  // Self-workspace envs: clear BOTH so each test declares the exact identity it
+  // relies on (WORKSPACE_ID can otherwise leak in from ORIGINAL_ENV and mask a
+  // fail-closed assertion).
+  delete process.env.MOLECULE_WORKSPACE_ID;
+  delete process.env.WORKSPACE_ID;
 });
 
 afterAll(() => {
@@ -405,6 +410,29 @@ describe("install_plugin (management self-install, §5.2)", () => {
     expect(url).toBe(`${HOST}/workspaces/w-self/plugins`);
   });
 
+  it("defaults workspace_id to WORKSPACE_ID when MOLECULE_WORKSPACE_ID is absent (self-install on a pre-fix tenant image)", async () => {
+    // The converged prod fleet (molecule-tenant:staging-f5071e5) predates the
+    // concierge env fix so its concierge carries only WORKSPACE_ID, never
+    // MOLECULE_WORKSPACE_ID. The fallback must make zero-config self-install work.
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    process.env.WORKSPACE_ID = "w-universal";
+    const f = mockFetch({ status: "installed", plugin: "p", restarting: true });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtInstallPlugin({ source: "local://p" });
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w-universal/plugins`);
+  });
+
+  it("prefers MOLECULE_WORKSPACE_ID over WORKSPACE_ID when both are set", async () => {
+    process.env.MOLECULE_WORKSPACE_ID = "w-alias";
+    process.env.WORKSPACE_ID = "w-universal";
+    const f = mockFetch({ status: "installed", plugin: "p", restarting: true });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtInstallPlugin({ source: "local://p" });
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w-alias/plugins`);
+  });
+
   it("passes restart:false through to the tenant body", async () => {
     const f = mockFetch({ status: "installed", plugin: "p", restarting: false });
     global.fetch = f as unknown as typeof fetch;
@@ -413,8 +441,9 @@ describe("install_plugin (management self-install, §5.2)", () => {
     expect(JSON.parse(init.body as string).restart).toBe(false);
   });
 
-  it("fails closed with INVALID_ARGUMENTS when no workspace_id and no MOLECULE_WORKSPACE_ID", async () => {
+  it("fails closed with INVALID_ARGUMENTS when no workspace_id and neither MOLECULE_WORKSPACE_ID nor WORKSPACE_ID", async () => {
     delete process.env.MOLECULE_WORKSPACE_ID;
+    delete process.env.WORKSPACE_ID;
     const f = mockFetch({ status: "installed" });
     global.fetch = f as unknown as typeof fetch;
     const res = await mgmtInstallPlugin({ source: "local://p" });
@@ -455,8 +484,19 @@ describe("list_available_plugins (management marketplace discovery, §5.2)", () 
     expect(url).toBe(`${HOST}/workspaces/${encodeURIComponent("a/../b")}/plugins/available`);
   });
 
+  it("filters by the caller's own workspace via WORKSPACE_ID fallback when MOLECULE_WORKSPACE_ID is absent", async () => {
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    process.env.WORKSPACE_ID = "w-universal";
+    const f = mockFetch([]);
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtListAvailablePlugins({});
+    const { url } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/w-universal/plugins/available`);
+  });
+
   it("degrades to the unfiltered registry when no workspace id is resolvable", async () => {
     delete process.env.MOLECULE_WORKSPACE_ID;
+    delete process.env.WORKSPACE_ID;
     const f = mockFetch([]);
     global.fetch = f as unknown as typeof fetch;
     await mgmtListAvailablePlugins({});
@@ -1011,8 +1051,18 @@ describe("get_conversation_history (on-demand paginated history)", () => {
     expect(lastCall(f).url).toBe(`${HOST}/workspaces/own-ws/chat-history?limit=50`);
   });
 
+  it("defaults workspace_id to WORKSPACE_ID when MOLECULE_WORKSPACE_ID is absent", async () => {
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    process.env.WORKSPACE_ID = "own-ws-universal";
+    const f = mockFetch(HISTORY_BODY);
+    global.fetch = f as unknown as typeof fetch;
+    await handleGetConversationHistory({});
+    expect(lastCall(f).url).toBe(`${HOST}/workspaces/own-ws-universal/chat-history?limit=50`);
+  });
+
   it("fails closed (no fetch) with INVALID_ARGUMENTS when no workspace can be resolved", async () => {
     delete process.env.MOLECULE_WORKSPACE_ID;
+    delete process.env.WORKSPACE_ID;
     const f = mockFetch(HISTORY_BODY);
     global.fetch = f as unknown as typeof fetch;
     const res = parsed(await handleGetConversationHistory({}));
