@@ -1,6 +1,6 @@
 {
   "name": "@molecule-ai/mcp-server",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "MCP server for Molecule AI Agent Team — manage workspaces, agents, and skills from any AI coding tool",
   "type": "module",
   "exports": {

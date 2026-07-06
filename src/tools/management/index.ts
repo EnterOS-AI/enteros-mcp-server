@@ -18,7 +18,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { toMcpResult, isApiError } from "../../api.js";
 import { validate } from "../../utils/validation.js";
-import { mgmtCall, mgmtGet, defaultOrgId } from "./client.js";
+import { mgmtCall, mgmtGet, defaultOrgId, selfWorkspaceId } from "./client.js";
 import { registerCpAdminTools } from "./cp_admin.js";
 
 // ---------------------------------------------------------------------------
@@ -176,13 +176,13 @@ const InstallPluginMgmtSchema = z.object({
 export async function handleInstallPlugin(args: unknown) {
   const p = validate(args, InstallPluginMgmtSchema);
   // Default to SELF — same fail-closed pattern as get_conversation_history.
-  const workspaceId = p.workspace_id || process.env.MOLECULE_WORKSPACE_ID;
+  const workspaceId = p.workspace_id || selfWorkspaceId();
   if (!workspaceId) {
     return toMcpResult({
       error: "INVALID_ARGUMENTS",
       detail:
         "workspace_id is required — pass the target workspace UUID, or set " +
-        "MOLECULE_WORKSPACE_ID so it defaults to the caller's own workspace.",
+        "MOLECULE_WORKSPACE_ID / WORKSPACE_ID so it defaults to the caller's own workspace.",
     });
   }
   const body: Record<string, unknown> = { source: p.source };
@@ -236,7 +236,7 @@ export function withInstallSources(entries: unknown): unknown {
 
 export async function handleListAvailablePlugins(args: unknown) {
   const p = validate(args, ListAvailablePluginsMgmtSchema);
-  const workspaceId = p.workspace_id || process.env.MOLECULE_WORKSPACE_ID;
+  const workspaceId = p.workspace_id || selfWorkspaceId();
   const res = workspaceId
     ? await mgmtGet(`/workspaces/${encodeURIComponent(workspaceId)}/plugins/available`)
     : await mgmtGet("/plugins");
@@ -547,14 +547,14 @@ export async function handleGetConversationHistory(args: unknown) {
   // workspace_id defaults to the caller's own workspace. Fail closed (no
   // fetch) with a clean INVALID_ARGUMENTS when neither the param nor the
   // env is available, rather than firing a request that can't name a target.
-  const workspaceId = p.workspace_id || process.env.MOLECULE_WORKSPACE_ID;
+  const workspaceId = p.workspace_id || selfWorkspaceId();
   if (!workspaceId) {
     return toMcpResult({
       error: "INVALID_ARGUMENTS",
       detail:
         "workspace_id is required — pass the workspace UUID whose conversation " +
-        "history you want, or set MOLECULE_WORKSPACE_ID so it defaults to the " +
-        "caller's own workspace.",
+        "history you want, or set MOLECULE_WORKSPACE_ID / WORKSPACE_ID so it " +
+        "defaults to the caller's own workspace.",
     });
   }
 
