@@ -109,6 +109,9 @@ beforeEach(() => {
   process.env.MOLECULE_ORG_ID = ORG_ID;
   delete process.env.MOLECULE_MCP_MODE;
   delete process.env.CP_ADMIN_API_TOKEN;
+  delete process.env.MOLECULE_LLM_DEFAULT_MODEL;
+  delete process.env.MOLECULE_MODEL;
+  delete process.env.MODEL;
   // Self-workspace envs: clear BOTH so each test declares the exact identity it
   // relies on (WORKSPACE_ID can otherwise leak in from ORIGINAL_ENV and mask a
   // fail-closed assertion).
@@ -261,6 +264,31 @@ describe("workspace lifecycle tools", () => {
     expect(body.name).toBe("Researcher");
     expect(body.runtime).toBe("claude-code");
     expect(body.tier).toBe(2);
+    expect(body.model).toBe("minimax/MiniMax-M2.7");
+  });
+
+  it("provision_workspace uses MOLECULE_LLM_DEFAULT_MODEL when model is omitted", async () => {
+    process.env.MOLECULE_LLM_DEFAULT_MODEL = "minimax/MiniMax-M3";
+    const f = mockFetch({ id: "w-default" });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtProvisionWorkspace({ name: "Defaulted", runtime: "claude-code" });
+    const { init } = lastCall(f);
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("minimax/MiniMax-M3");
+  });
+
+  it("provision_workspace respects an explicit model", async () => {
+    process.env.MOLECULE_LLM_DEFAULT_MODEL = "minimax/MiniMax-M3";
+    const f = mockFetch({ id: "w-explicit" });
+    global.fetch = f as unknown as typeof fetch;
+    await mgmtProvisionWorkspace({
+      name: "Explicit",
+      runtime: "claude-code",
+      model: "moonshot/kimi-k2.6",
+    });
+    const { init } = lastCall(f);
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("moonshot/kimi-k2.6");
   });
 
   it("deprovision_workspace DELETEs /workspaces/:id", async () => {

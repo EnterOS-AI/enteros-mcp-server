@@ -13,8 +13,8 @@ name: contract-verb-binding
 #      gating.
 #
 #   2. vendor-sync — byte-compares our vendored
-#      contracts/mcp-plugin-delivery.contract.json against molecule-core's
-#      canonical so the vendored copy can't silently drift. molecule-core is
+#      contracts/mcp-plugin-delivery.contract.json against molecule-ai-sdk's
+#      canonical so the vendored copy can't silently drift. molecule-ai-sdk is
 #      PUBLIC, so this needs NO secret: it reads the canonical over the public
 #      raw endpoint and is fail-closed on fetch-error or drift, on every
 #      context incl. fork PRs.
@@ -23,8 +23,8 @@ name: contract-verb-binding
 # added to the gating set without editing the existing CI job.
 #
 # CONTRACT SHAPE: the verb SSOT is the SINGULAR `required_tool` (a string),
-# landed on core main by core#3280. The vendored copy is byte-identical to
-# core main's canonical; vendor-sync enforces that byte-identity.
+# landed in the molecule-ai-sdk SSOT. The vendored copy is byte-identical to
+# the SDK canonical; vendor-sync enforces that byte-identity.
 
 on:
   push:
@@ -58,19 +58,19 @@ jobs:
         run: npx jest src/__tests__/contract-verb-binding.test.ts
 
   vendor-sync:
-    name: Vendored contract byte-identical to molecule-core canonical
+    name: Vendored contract byte-identical to molecule-ai-sdk canonical
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Byte-compare vendored contract against core canonical
         env:
-          # molecule-core is public -> no secret required. CONTRACT_SYNC_TOKEN
-          # is sent only if present (rate-limit headroom / future-private core).
+          # molecule-ai-sdk is public -> no secret required. CONTRACT_SYNC_TOKEN
+          # is sent only if present (rate-limit headroom / future-private SDK).
           # Fail-closed on fetch error or byte drift regardless.
           CONTRACT_SYNC_TOKEN: ${{ secrets.CONTRACT_SYNC_TOKEN }}
           API_ROOT: ${{ github.server_url }}/api/v1
         run: |
           set -euo pipefail
-          export CORE_REF=main
+          export SSOT_REF=main
           bash .gitea/scripts/check-contract-vendor-sync.sh

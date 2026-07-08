@@ -39,7 +39,10 @@ const ProvisionWorkspaceSchema = z.object({
     .describe("Runtime: claude-code, langgraph, deepagents, autogen, crewai, hermes, codex, google-adk, external"),
   tier: z.number().int().min(1).max(4).optional().describe("Tier (1=basic, 2=browser, 3=desktop, 4=VM)"),
   parent_id: z.string().optional().describe("Parent workspace UUID for nesting"),
-  model: z.string().optional().describe("LLM model id"),
+  model: z
+    .string()
+    .optional()
+    .describe("LLM model id. Omit unless the user named a model; omitted values use the platform default."),
 });
 
 const DeprovisionWorkspaceSchema = z.object({
@@ -315,6 +318,17 @@ const GetConversationHistorySchema = z.object({
 // Handlers
 // ---------------------------------------------------------------------------
 
+const FALLBACK_PLATFORM_WORKSPACE_MODEL = "minimax/MiniMax-M2.7";
+
+function defaultProvisionWorkspaceModel(): string {
+  return (
+    process.env.MOLECULE_LLM_DEFAULT_MODEL?.trim() ||
+    process.env.MOLECULE_MODEL?.trim() ||
+    process.env.MODEL?.trim() ||
+    FALLBACK_PLATFORM_WORKSPACE_MODEL
+  );
+}
+
 // Workspaces lifecycle -----------------------------------------------------
 
 export async function handleListWorkspaces() {
@@ -328,6 +342,7 @@ export async function handleGetWorkspace(args: unknown) {
 
 export async function handleProvisionWorkspace(args: unknown) {
   const p = validate(args, ProvisionWorkspaceSchema);
+  const model = p.model?.trim() || defaultProvisionWorkspaceModel();
   // Tenant POST /workspaces (AdminAuth — the Org API Key satisfies it).
   // This is the org-key-reachable provision lever; the CP /cp/workspaces/
   // provision path needs the provision-secret tier (see cp_admin.ts note).
@@ -339,7 +354,7 @@ export async function handleProvisionWorkspace(args: unknown) {
       runtime: p.runtime,
       tier: p.tier,
       parent_id: p.parent_id,
-      model: p.model,
+      model,
     }),
   );
 }
@@ -658,7 +673,7 @@ export function registerManagementTools(srv: McpServer) {
       runtime: z.string().optional().describe("Runtime (claude-code, langgraph, codex, …)"),
       tier: z.number().int().min(1).max(4).optional().describe("Tier 1-4"),
       parent_id: z.string().optional().describe("Parent workspace UUID"),
-      model: z.string().optional().describe("LLM model id"),
+      model: z.string().optional().describe("LLM model id. Omit unless the user named a model; omitted values use the platform default."),
     },
     handleProvisionWorkspace,
   );
