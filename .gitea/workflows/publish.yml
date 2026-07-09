@@ -48,9 +48,9 @@ jobs:
               -H "Authorization: Bearer $TOK" \
               | python3 -c 'import sys,json;d=json.load(sys.stdin);v=(d.get("secret") or {}).get("secretValue");print(v if isinstance(v,str) and v else "")'
           }
-          MOL_PACKAGE_TOKEN=$(read_secret MOL_PACKAGE_TOKEN %2Fci%2Fgitea-pypi-publisher)
+          MOL_PACKAGE_TOKEN=$(read_secret MOL_PACKAGE_TOKEN %2Fci%2Fgitea-npm-publisher)
           if [ -z "$MOL_PACKAGE_TOKEN" ]; then
-            echo "Infisical returned empty for MOL_PACKAGE_TOKEN at /ci/gitea-pypi-publisher (prod) -- authoritative fetch failed; failing closed instead of publishing with an empty token" >&2
+            echo "Infisical returned empty for MOL_PACKAGE_TOKEN at /ci/gitea-npm-publisher (prod) -- authoritative fetch failed; failing closed instead of publishing with an empty token" >&2
             exit 1
           fi
           echo "::add-mask::$MOL_PACKAGE_TOKEN"
