@@ -46,7 +46,7 @@ jobs:
   #       unpublish the out-of-band 1.6.x), and
   #   (2) the publish-token lockdown (OWNER: revoke every non-CI write:package
   #       token on org molecule-ai so the only publisher is CI's
-  #       MOL_PACKAGE_TOKEN at Infisical /ci/gitea-pypi-publisher).
+  #       MOL_PACKAGE_TOKEN at Infisical /ci/gitea-npm-publisher).
   # Then remove continue-on-error here and add "CI / provenance" to branch
   # protection's status_check_contexts (owner-only BP edit).
   provenance:

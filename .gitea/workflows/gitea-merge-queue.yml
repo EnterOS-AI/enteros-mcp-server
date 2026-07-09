@@ -62,7 +62,7 @@ jobs:
       #
       # Provenance note (correcting PR description): the PR description
       # describes the migrated set as "low-risk / least-priv". That label
-      # applied to MOL_PACKAGE_TOKEN (path /ci/gitea-pypi-publisher, scoped
+      # applied to MOL_PACKAGE_TOKEN (path /ci/gitea-npm-publisher, scoped
       # to publish creds) but does NOT apply here — AUTO_SYNC_TOKEN is read
       # from /shared/dev-utils, a SHARED Infisical path that contains
       # other dev-utils secrets alongside it. The binding safety for this
