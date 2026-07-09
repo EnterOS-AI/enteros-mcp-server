@@ -653,6 +653,14 @@ describe("handleRemoveAgent()", () => {
       expect.objectContaining({ method: "DELETE" })
     );
   });
+
+  test("rejects query/fragment injection in the workspace id before fetch", async () => {
+    global.fetch = mockFetch({ removed: true });
+    const result = await handleRemoveAgent({ workspace_id: "victim?confirm=true#" });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expectJsonContent(result, expect.objectContaining({ error: "Invalid platform API path" }));
+  });
 });
 
 describe("handleMoveAgent()", () => {

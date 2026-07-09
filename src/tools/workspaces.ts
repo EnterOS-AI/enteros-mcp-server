@@ -331,7 +331,13 @@ export async function handleGetWorkspace(params: { workspace_id: string }) {
 
 export async function handleDeleteWorkspace(params: { workspace_id: string; confirm_name?: string }) {
   const headers = params.confirm_name ? { "X-Confirm-Name": params.confirm_name } : undefined;
-  const data = await apiCall("DELETE", `/workspaces/${params.workspace_id}?confirm=true`, undefined, headers);
+  const data = await apiCall(
+    "DELETE",
+    `/workspaces/${params.workspace_id}`,
+    undefined,
+    headers,
+    { confirm: true },
+  );
   return toMcpResult(data);
 }
 
@@ -355,12 +361,24 @@ export async function handleUpdateWorkspace(params: {
 }
 
 export async function handlePauseWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/pause?cascade=true`, {});
+  const data = await apiCall(
+    "POST",
+    `/workspaces/${params.workspace_id}/pause`,
+    {},
+    undefined,
+    { cascade: true },
+  );
   return toMcpResult(data);
 }
 
 export async function handleResumeWorkspace(params: { workspace_id: string }) {
-  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/resume?cascade=true`, {});
+  const data = await apiCall(
+    "POST",
+    `/workspaces/${params.workspace_id}/resume`,
+    {},
+    undefined,
+    { cascade: true },
+  );
   return toMcpResult(data);
 }
 

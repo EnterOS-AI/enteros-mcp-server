@@ -99,15 +99,24 @@ export function apiPathSegment(value: string): string {
 
 class InvalidPlatformPathError extends Error {}
 
-function platformRequestUrl(path: string): string {
-  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
+export type PlatformQuery =
+  | URLSearchParams
+  | Record<string, string | number | boolean | undefined>;
+
+function platformRequestUrl(path: string, query?: PlatformQuery): string {
+  if (
+    !path.startsWith("/")
+    || path.startsWith("//")
+    || path.includes("\\")
+    || path.includes("?")
+    || path.includes("#")
+  ) {
     throw new InvalidPlatformPathError(
-      "platform API path must be an absolute path on the configured origin"
+      "platform API path must be an absolute pathname on the configured origin"
     );
   }
 
-  const pathname = path.split(/[?#]/, 1)[0];
-  for (const rawSegment of pathname.split("/")) {
+  for (const rawSegment of path.split("/")) {
     let decoded: string;
     try {
       decoded = decodeURIComponent(rawSegment);
@@ -125,7 +134,15 @@ function platformRequestUrl(path: string): string {
     }
   }
 
-  return `${PLATFORM_URL}${path}`;
+  const searchParams = query instanceof URLSearchParams
+    ? new URLSearchParams(query)
+    : new URLSearchParams(
+      Object.entries(query ?? {})
+        .filter((entry): entry is [string, string | number | boolean] => entry[1] !== undefined)
+        .map(([key, value]) => [key, String(value)]),
+    );
+  const search = searchParams.toString();
+  return `${PLATFORM_URL}${path}${search ? `?${search}` : ""}`;
 }
 
 export async function apiCall<T = unknown>(
@@ -137,10 +154,13 @@ export async function apiCall<T = unknown>(
   // need an additional `X-Molecule-Admin-Token`, or the tenant-scoped
   // `/cp/internal/llm/*` endpoints that need a different Bearer (see #36).
   extraHeaders?: Record<string, string>,
+  // Query parameters are separate from the pathname so dynamic path values
+  // cannot retarget a request through `?` or `#` injection.
+  query?: PlatformQuery,
 ): Promise<T | ApiError> {
   try {
     // Precedence: base (Content-Type) < authHeaders() < extraHeaders.
-    const res = await fetch(platformRequestUrl(path), {
+    const res = await fetch(platformRequestUrl(path, query), {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -187,12 +207,13 @@ export async function platformGet<T = unknown>(
   // Optional per-call header overrides, merged LAST (same precedence as
   // apiCall): base < authHeaders() < extraHeaders.
   extraHeaders?: Record<string, string>,
+  query?: PlatformQuery,
 ): Promise<T | ApiError> {
   let attempt = 0;
 
   while (true) {
     try {
-      const res = await fetch(platformRequestUrl(path), {
+      const res = await fetch(platformRequestUrl(path, query), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
