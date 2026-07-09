@@ -93,6 +93,41 @@ export function toMcpText(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
 
+export function apiPathSegment(value: string): string {
+  return encodeURIComponent(value);
+}
+
+class InvalidPlatformPathError extends Error {}
+
+function platformRequestUrl(path: string): string {
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
+    throw new InvalidPlatformPathError(
+      "platform API path must be an absolute path on the configured origin"
+    );
+  }
+
+  const pathname = path.split(/[?#]/, 1)[0];
+  for (const rawSegment of pathname.split("/")) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(rawSegment);
+    } catch {
+      throw new InvalidPlatformPathError("platform API path contains invalid percent encoding");
+    }
+    const decodedParts = decoded.replaceAll("\\", "/").split("/");
+    if (
+      decodedParts.some((part) => part === "." || part === "..")
+      || [...decoded].some((char) => char.charCodeAt(0) < 32)
+    ) {
+      throw new InvalidPlatformPathError(
+        "platform API path contains an unsafe dot or control segment"
+      );
+    }
+  }
+
+  return `${PLATFORM_URL}${path}`;
+}
+
 export async function apiCall<T = unknown>(
   method: string,
   path: string,
@@ -105,7 +140,7 @@ export async function apiCall<T = unknown>(
 ): Promise<T | ApiError> {
   try {
     // Precedence: base (Content-Type) < authHeaders() < extraHeaders.
-    const res = await fetch(`${PLATFORM_URL}${path}`, {
+    const res = await fetch(platformRequestUrl(path), {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -126,6 +161,9 @@ export async function apiCall<T = unknown>(
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (err instanceof InvalidPlatformPathError) {
+      return { error: "Invalid platform API path", detail: msg };
+    }
     logError(err, `Molecule AI API error (${method} ${path})`, { platformUrl: PLATFORM_URL });
     return { error: `Platform unreachable at ${PLATFORM_URL}`, detail: msg };
   }
@@ -154,7 +192,7 @@ export async function platformGet<T = unknown>(
 
   while (true) {
     try {
-      const res = await fetch(`${PLATFORM_URL}${path}`, {
+      const res = await fetch(platformRequestUrl(path), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -202,6 +240,9 @@ export async function platformGet<T = unknown>(
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (err instanceof InvalidPlatformPathError) {
+        return { error: "Invalid platform API path", detail: msg };
+      }
       logError(err, `Molecule AI API error (GET ${path})`, { platformUrl: PLATFORM_URL });
       return { error: `Platform unreachable at ${PLATFORM_URL}`, detail: msg };
     }

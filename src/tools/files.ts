@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, platformGet, toMcpResult, toMcpText } from "../api.js";
+import { apiCall, apiPathSegment, platformGet, toMcpResult, toMcpText } from "../api.js";
 import { validate } from "../utils/validation.js";
 
 // ---------------------------------------------------------------------------
@@ -52,46 +52,66 @@ export type UpdateConfigParams = z.infer<typeof UpdateConfigSchema>;
 // Handlers
 // ---------------------------------------------------------------------------
 
+function encodedFilePath(path: string): string {
+  if (path.startsWith("/") || path.includes("\\")) {
+    throw new Error("File path must be relative and contain no dot segments");
+  }
+  const segments = path.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    throw new Error("File path must be relative and contain no dot segments");
+  }
+  return segments.map(apiPathSegment).join("/");
+}
+
 export async function handleListFiles(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, ListFilesSchema);
-  const data = await platformGet(`/workspaces/${params.workspace_id}/files`);
+  const data = await platformGet(`/workspaces/${apiPathSegment(params.workspace_id)}/files`);
   return toMcpResult(data);
 }
 
 export async function handleReadFile(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, ReadFileSchema);
-  const data = await platformGet<{ content?: string }>(`/workspaces/${params.workspace_id}/files/${params.path}`);
+  const data = await platformGet<{ content?: string }>(
+    `/workspaces/${apiPathSegment(params.workspace_id)}/files/${encodedFilePath(params.path)}`
+  );
   const fileText = (data as { content?: string } | null)?.content;
   return fileText ? toMcpText(fileText) : toMcpResult(data);
 }
 
 export async function handleWriteFile(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, WriteFileSchema);
-  const data = await apiCall("PUT", `/workspaces/${params.workspace_id}/files/${params.path}`, { content: params.content });
+  const data = await apiCall(
+    "PUT",
+    `/workspaces/${apiPathSegment(params.workspace_id)}/files/${encodedFilePath(params.path)}`,
+    { content: params.content }
+  );
   return toMcpResult(data);
 }
 
 export async function handleDeleteFile(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, DeleteFileSchema);
-  const data = await apiCall("DELETE", `/workspaces/${params.workspace_id}/files/${params.path}`);
+  const data = await apiCall(
+    "DELETE",
+    `/workspaces/${apiPathSegment(params.workspace_id)}/files/${encodedFilePath(params.path)}`
+  );
   return toMcpResult(data);
 }
 
 export async function handleReplaceAllFiles(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, ReplaceAllFilesSchema);
-  const data = await apiCall("PUT", `/workspaces/${params.workspace_id}/files`, { files: params.files });
+  const data = await apiCall("PUT", `/workspaces/${apiPathSegment(params.workspace_id)}/files`, { files: params.files });
   return toMcpResult(data);
 }
 
 export async function handleGetConfig(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, GetConfigSchema);
-  const data = await platformGet(`/workspaces/${params.workspace_id}/config`);
+  const data = await platformGet(`/workspaces/${apiPathSegment(params.workspace_id)}/config`);
   return toMcpResult(data);
 }
 
 export async function handleUpdateConfig(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, UpdateConfigSchema);
-  const data = await apiCall("PATCH", `/workspaces/${params.workspace_id}/config`, params.config);
+  const data = await apiCall("PATCH", `/workspaces/${apiPathSegment(params.workspace_id)}/config`, params.config);
   return toMcpResult(data);
 }
 
