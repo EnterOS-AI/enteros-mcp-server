@@ -145,14 +145,21 @@ describe("management auth model", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
-  it("returns AUTH_ERROR (no fetch) when org routing header is absent", async () => {
+  it("self-host (no org id/slug): proceeds BEARER-ONLY, no X-Molecule-Org-* header", async () => {
+    // both-empty ⟺ self-host (SaaS always sets MOLECULE_ORG_ID). A directly-
+    // addressed single-tenant host needs no edge-routing header, so instead of
+    // failing closed the client proceeds with the Org API Key alone.
     delete process.env.MOLECULE_ORG_ID;
     delete process.env.MOLECULE_ORG_SLUG;
-    const f = mockFetch({});
+    const f = mockFetch([{ id: "w1" }]);
     global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleListWorkspaceSecrets({ workspace_id: "w1" }));
-    expect(res.error).toBe("AUTH_ERROR");
-    expect(f).not.toHaveBeenCalled();
+    const res = parsed(await mgmtListWorkspaces());
+    expect(res.error).toBeUndefined();
+    expect(f).toHaveBeenCalled();
+    const h = headersOf(lastCall(f).init);
+    expect(h.Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(h["X-Molecule-Org-Id"]).toBeUndefined();
+    expect(h["X-Molecule-Org-Slug"]).toBeUndefined();
   });
 
   it("maps a 401 to AUTH_ERROR", async () => {

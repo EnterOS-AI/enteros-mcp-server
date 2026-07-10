@@ -88,15 +88,18 @@ function managementHeaders(): Record<string, string> | ApiError {
   }
   const orgId = process.env.MOLECULE_ORG_ID;
   const slug = process.env.MOLECULE_ORG_SLUG;
-  if (!orgId && !slug) {
-    return {
-      error: "AUTH_ERROR",
-      detail:
-        "MOLECULE_ORG_ID or MOLECULE_ORG_SLUG is required. The tenant host " +
-        "needs a routing header so the edge / TenantGuard can route and " +
-        "authorize against the correct org.",
-    };
-  }
+  // The X-Molecule-Org-* routing header disambiguates WHICH tenant a request is
+  // for at the MULTI-TENANT EDGE (`<slug>.moleculesai.app` → the right EC2's
+  // TenantGuard). On a SELF-HOST / local stack there is no edge and no
+  // multi-tenancy: MOLECULE_URL points DIRECTLY at the single-tenant
+  // workspace-server, the org has no CP-assigned id/slug (`/org/identity` is
+  // empty, the workspace row's org_id is null by design — core#3496), and the
+  // Org API Key alone identifies the org. SaaS ALWAYS sets MOLECULE_ORG_ID (the
+  // CP provisioner injects it), so `both-empty ⟺ self-host`. In that case we
+  // proceed BEARER-ONLY (no routing header) instead of failing closed — the
+  // single-tenant host resolves the org from the credential. Hard-failing here
+  // was the self-host management-tool fail-close (concierge could not
+  // provision/list on a directly-addressed tenant host).
   const h: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${tok}`,
