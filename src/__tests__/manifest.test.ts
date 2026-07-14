@@ -116,7 +116,7 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names).toHaveLength(96);
+    expect(names).toHaveLength(93);
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain("chat_with_agent");
   });

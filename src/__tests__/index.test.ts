@@ -44,8 +44,6 @@ import {
   handleCommitMemory,
   handleSearchMemory,
   handleListTemplates,
-  handleExpandTeam,
-  handleCollapseTeam,
   handleListPendingApprovals,
   handleDecideApproval,
   handleUpdateWorkspace,
@@ -894,32 +892,6 @@ describe("handleImportTemplate()", () => {
 });
 
 // ============================================================
-// Team Expansion
-// ============================================================
-
-describe("handleExpandTeam()", () => {
-  test("POSTs to /workspaces/:id/expand", async () => {
-    global.fetch = mockFetch({ expanded: true });
-    await handleExpandTeam({ workspace_id: "ws-team" });
-    expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-team/expand`,
-      expect.objectContaining({ method: "POST" })
-    );
-  });
-});
-
-describe("handleCollapseTeam()", () => {
-  test("POSTs to /workspaces/:id/collapse", async () => {
-    global.fetch = mockFetch({ collapsed: true });
-    await handleCollapseTeam({ workspace_id: "ws-team" });
-    expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-team/collapse`,
-      expect.objectContaining({ method: "POST" })
-    );
-  });
-});
-
-// ============================================================
 // Approvals (DEPRECATED shims over the unified /requests subsystem, RFC P5)
 // ============================================================
 
@@ -1212,12 +1184,12 @@ describe("createServer()", () => {
   // and each tool() call is recorded by the mocked McpServer above. If a
   // future PR adds a tool file but forgets to call its registerXxxTools
   // from createServer(), this count drops and the test fails. We assert
-  // the concrete current tool count (96) rather than a lower bound so a
+  // the concrete current tool count (93) rather than a lower bound so a
   // silently-dropped handler is also caught.
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(96);
+    expect(names.length).toBe(93);
     // create_issue (Gitea bug-filing) must be wired into the default surface.
     expect(names).toContain("create_issue");
     // Unified requests/inbox tools (RFC P2) — all 7 wired into the surface.

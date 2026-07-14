@@ -45,11 +45,6 @@ export async function handleSessionSearch(params: {
   return toMcpResult(data);
 }
 
-export async function handleGetSharedContext(params: { workspace_id: string }) {
-  const data = await platformGet(`/workspaces/${params.workspace_id}/shared-context`);
-  return toMcpResult(data);
-}
-
 export async function handleSetKV(params: {
   workspace_id: string;
   key: string;
@@ -119,13 +114,6 @@ export function registerMemoryTools(srv: McpServer) {
       limit: z.number().optional(),
     },
     handleSessionSearch,
-  );
-
-  srv.tool(
-    "get_shared_context",
-    "Get the shared-context blob for a workspace (persistent cross-turn context).",
-    { workspace_id: z.string() },
-    handleGetSharedContext,
   );
 
   srv.tool(

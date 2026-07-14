@@ -142,7 +142,7 @@ src/
 
 `npm run build:manifest` composes the real server in both modes and writes the
 authoritative names, descriptions, and schemas to `dist/manifest.json`. The
-current generated totals are **96 workspace-mode tools** and **46
+current generated totals are **93 workspace-mode tools** and **46
 management-mode tools**, ratcheted by the registration tests. The tables below
 are a workspace-mode reference, not an exhaustive registry.
 
@@ -202,14 +202,13 @@ are a workspace-mode reference, not an exhaustive registry.
 | `get_config` | Get workspace runtime config as JSON |
 | `update_config` | Update workspace runtime config |
 
-### Memory Tools (9)
+### Memory Tools (8)
 | Tool | Description |
 |------|-------------|
 | `commit_memory` | Store a fact in workspace memory (LOCAL, TEAM, or GLOBAL scope) |
 | `search_memory` | Search workspace memories |
 | `delete_memory` | Delete a specific memory entry |
 | `session_search` | Search recent session activity and memory (FTS) |
-| `get_shared_context` | Get the shared-context blob for a workspace |
 | `memory_set` | Set a key-value memory entry with optional TTL |
 | `memory_get` | Read a single K/V memory entry |
 | `memory_list` | List all K/V memory entries for a workspace |
@@ -248,7 +247,7 @@ are a workspace-mode reference, not an exhaustive registry.
 | `run_schedule` | Fire a schedule manually, bypassing its cron expression |
 | `get_schedule_history` | Get past runs of a schedule — status, start/end, output |
 
-### Discovery Tools (14)
+### Discovery Tools (12)
 | Tool | Description |
 |------|-------------|
 | `list_peers` | List reachable peer workspaces (siblings, children, parent) |
@@ -263,8 +262,6 @@ are a workspace-mode reference, not an exhaustive registry.
 | `import_bundle` | Import a workspace from a bundle JSON object |
 | `get_canvas_viewport` | Get the current canvas viewport (x, y, zoom) |
 | `set_canvas_viewport` | Persist the canvas viewport (x, y, zoom) |
-| `expand_team` | Expand a workspace into a team of sub-workspaces |
-| `collapse_team` | Collapse a team back to a single workspace |
 
 ### Remote Agents Tools (4)
 | Tool | Description |
