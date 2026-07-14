@@ -825,13 +825,43 @@ describe("handleSearchMemory()", () => {
 });
 
 describe("handleDeleteMemory()", () => {
-  test("DELETEs /workspaces/:id/memories/:memory_id", async () => {
-    global.fetch = mockFetch({ deleted: true });
-    await handleDeleteMemory({ workspace_id: "ws-m", memory_id: "mem-42" });
+  const savedKey = process.env.MOLECULE_API_KEY;
+
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.MOLECULE_API_KEY;
+    else process.env.MOLECULE_API_KEY = savedKey;
+  });
+
+  test("DELETEs the supported v2 memory route with tenant auth", async () => {
+    process.env.MOLECULE_API_KEY = "tenant-memory-token";
+    global.fetch = mockFetch({ status: "deleted" });
+
+    const result = await handleDeleteMemory({ workspace_id: "ws-m", memory_id: "mem-42" });
+
     expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-m/memories/mem-42`,
-      expect.objectContaining({ method: "DELETE" })
+      `${PLATFORM_URL}/workspaces/ws-m/v2/memories/mem-42`,
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer tenant-memory-token",
+          "Content-Type": "application/json",
+        }),
+        body: undefined,
+      }),
     );
+    expectJsonContent(result, { status: "deleted" });
+  });
+
+  test("preserves Core's v2 delete error response", async () => {
+    process.env.MOLECULE_API_KEY = "tenant-memory-token";
+    global.fetch = mockFetch({ error: "memory not found" }, false, 404);
+
+    const result = await handleDeleteMemory({ workspace_id: "ws-m", memory_id: "missing" });
+
+    expectJsonContent(result, {
+      error: "HTTP 404",
+      detail: JSON.stringify({ error: "memory not found" }),
+    });
   });
 });
 

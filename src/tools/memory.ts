@@ -27,7 +27,7 @@ export async function handleSearchMemory(params: {
 
 export async function handleDeleteMemory(params: { workspace_id: string; memory_id: string }) {
   const { workspace_id, memory_id } = params;
-  const data = await apiCall("DELETE", `/workspaces/${workspace_id}/memories/${memory_id}`);
+  const data = await apiCall("DELETE", `/workspaces/${workspace_id}/v2/memories/${memory_id}`);
   return toMcpResult(data);
 }
 
