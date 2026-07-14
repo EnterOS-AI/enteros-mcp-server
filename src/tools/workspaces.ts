@@ -223,9 +223,9 @@ export async function handleProvisionWorkspace(params: {
   //     order; auto-restarts). Read back via GET /workspaces/:id/model
   //     and ASSERT effective == requested — never trust the write-ack.
   //   - config.yaml (name/description/charter/required_env) → PUT
-  //     /workspaces/:id/files/config.yaml (writes via EIC to the
-  //     workspace EC2 + auto-restarts). NOTE: the GET-back of
-  //     config.yaml resolves a DIFFERENT host/path than the PUT
+  //     /workspaces/:id/files/config.yaml through the tenant Files API (the
+  //     platform applies the update and restart). NOTE: the GET-back of
+  //     config.yaml resolves a DIFFERENT storage path than the PUT
   //     (documented asymmetry — molecule-core
   //     tests/e2e/test_staging_full_saas.sh), so config.yaml content is
   //     NOT read-back-asserted here; the model read-back is the

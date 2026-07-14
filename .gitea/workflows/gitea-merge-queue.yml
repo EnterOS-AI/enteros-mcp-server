@@ -1,6 +1,6 @@
 name: gitea-merge-queue
 
-# External serialized merge queue for Gitea 1.22.6.
+# External serialized merge queue for the current Gitea deployment.
 #
 # Gitea's `pull_auto_merge` table is not a real merge queue: it does not
 # serialize green PRs against a freshly-tested latest main. This workflow runs

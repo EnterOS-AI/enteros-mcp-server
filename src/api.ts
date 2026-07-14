@@ -1,16 +1,17 @@
 import { error as logError } from "./utils/logger.js";
 
-// Read the platform API base URL from environment.
-// Priority: MOLECULE_API_URL (canonical CLI/SDK env var, per platform docs)
+// Read the per-tenant workspace API base URL from environment.
+// Priority: MOLECULE_API_URL (canonical CLI/SDK env var, per platform docs).
 //
-//   > Required environment variables:
-//   >   MOLECULE_API_URL  — Control plane API base URL
-//   >   MOLECULE_RUNTIME_URL — Workspace runtime URL
-//   >   (per docs/development/constraints-and-rules.md)
+//   > Primary environment variable:
+//   >   MOLECULE_API_URL  — per-tenant workspace API base URL
+//
+// SaaS callers use https://<slug>.moleculesai.app. The control-plane host
+// https://api.moleculesai.app is a separate tier used only by the gated CP-admin
+// module; do not send a tenant API token there.
 //
 // Fallbacks exist for legacy callers (MOLECULE_URL, PLATFORM_URL) and
-// localhost dev default. Injecting MOLECULE_API_URL at container provision
-// is handled by platform/internal/provisioner/provisioner.go.
+// the no-auth localhost development default.
 export const PLATFORM_URL =
   process.env.MOLECULE_API_URL ||
   process.env.MOLECULE_URL ||
@@ -33,31 +34,19 @@ export function isApiError(v: unknown): v is ApiError {
  * When an auth token env var is set and non-empty we send
  * `Authorization: Bearer <token>`. Token resolution (first non-empty wins):
  *   MOLECULE_API_KEY → MOLECULE_API_TOKEN
- * This is the admin-Bearer credential the
- * control plane expects for the majority of admin endpoints
- * (`/cp/admin/orgs`, `/cp/admin/orgs/:slug/*`, and the workspace/agent/
- * memory/etc. tool families that route through it).
+ * This is the bearer credential expected by the configured tenant's
+ * workspace/agent/memory/etc. routes.
  *
- * When the key is unset/empty we send NO auth header — this is deliberate
- * back-compat so a no-auth localhost dev platform keeps working. Auth is NOT
- * hard-required at the request layer; misconfiguration is surfaced loudly at
- * startup (see the preflight in src/index.ts) rather than by failing closed
- * on every call.
+ * When the key is unset/empty we send no auth header only to preserve the
+ * no-auth localhost development path. A real tenant host requires a key;
+ * startup preflight reports that misconfiguration.
  *
  * SaaS tenant routing: when MOLECULE_ORG_ID (canonical) or its legacy aliases
  * are set, we also attach `X-Molecule-Org-Id` so the multi-tenant gateway can
  * route the request. Omitted when unset to preserve single-tenant behaviour.
  *
- * NOTE (follow-up, tracked in issue #36): a handful of endpoints need
- * different/extra credentials that this single Bearer does not cover —
- *   • POST /cp/workspaces/provision and DELETE /cp/workspaces/:id need a
- *     two-factor pair: `Authorization: Bearer <PROVISION_SHARED_SECRET>`
- *     plus `X-Molecule-Admin-Token: <tenant admin_token>`.
- *   • /cp/internal/llm/* need a tenant-scoped `Authorization: Bearer
- *     <tenant admin_token>` rather than the admin key.
- * The `extraHeaders` parameter on apiCall() is the hook that lets those tools
- * override/augment auth per call; wiring the provision-secret env and the
- * tenant-token fetch into those specific tools is a focused follow-up.
+ * The `extraHeaders` parameter on apiCall() remains the seam for tenant routes
+ * that require an additional endpoint-specific header.
  */
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -97,10 +86,8 @@ export async function apiCall<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
-  // Optional per-call header overrides. Merged LAST so a caller can override
-  // or augment the Bearer auth — e.g. the two-factor provision endpoints that
-  // need an additional `X-Molecule-Admin-Token`, or the tenant-scoped
-  // `/cp/internal/llm/*` endpoints that need a different Bearer (see #36).
+  // Optional per-call header overrides. Merged LAST so a tenant endpoint can
+  // override or augment the default Bearer when its contract requires it.
   extraHeaders?: Record<string, string>,
 ): Promise<T | ApiError> {
   try {

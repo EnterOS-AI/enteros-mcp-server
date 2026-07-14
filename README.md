@@ -2,9 +2,13 @@
 
 MCP server that exposes Molecule AI platform operations as tools for AI coding agents.
 
-## 87 Tools Available
+## Tool registries
 
-See the [full tool registry](CLAUDE.md#mcp-tool-registry) for all tools. Highlights:
+The authoritative tool list is generated from each real `createServer()` mode by
+`npm run build:manifest` and written to `dist/manifest.json`. On this exact
+source, generation reports **96 workspace-mode tools** and **46 management-mode
+tools**; tests ratchet those counts to the registrations. The highlights below
+are intentionally not a hand-maintained full list.
 
 | Category | Tools |
 |----------|-------|
@@ -77,9 +81,11 @@ MOLECULE_API_URL=http://localhost:8080 node mcp-server/dist/index.js
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MOLECULE_API_URL` | `http://localhost:8080` | Platform API base URL |
-| `MOLECULE_API_KEY` | — | API key for platform authentication |
-| `MCP_SERVER_PORT` | `3000` | Port (for HTTP/SSE transport) |
+| `MOLECULE_API_URL` | `http://localhost:8080` | Per-tenant workspace API base (`https://<slug>.moleculesai.app` in SaaS) |
+| `MOLECULE_API_KEY` | — | Tenant API bearer; optional only for a no-auth localhost stack |
+
+The executable implements stdio only (`StdioServerTransport`). It does not open
+an HTTP listener or parse transport/port CLI flags.
 
 ## Quick Start
 
@@ -208,4 +214,5 @@ pip install molecule-ai-sdk
 WORKSPACE_ID=... PLATFORM_URL=... python3 -c "from molecule_external_workspace import RemoteAgentClient; ..."
 ```
 
-See the full tool registry in `CLAUDE.md` for all 87 tools.
+Run `npm run build:manifest` and inspect `dist/manifest.json` for the exact,
+per-mode registry and input schemas.
