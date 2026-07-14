@@ -2,9 +2,13 @@
 
 MCP server that exposes Molecule AI platform operations as tools for AI coding agents.
 
-## 87 Tools Available
+## Tool registries
 
-See the [full tool registry](CLAUDE.md#mcp-tool-registry) for all tools. Highlights:
+The authoritative tool list is generated from each real `createServer()` mode by
+`npm run build:manifest` and written to `dist/manifest.json`. On this exact
+source, generation reports **96 workspace-mode tools** and **46 management-mode
+tools**; tests ratchet those counts to the registrations. The highlights below
+are intentionally not a hand-maintained full list.
 
 | Category | Tools |
 |----------|-------|
@@ -35,7 +39,7 @@ Add to your project's `.mcp.json`:
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "MOLECULE_API_URL": "https://api.moleculesai.app",
+        "MOLECULE_API_URL": "https://<slug>.moleculesai.app",
         "MOLECULE_API_KEY": "your-api-key-here"
       }
     }
@@ -45,8 +49,13 @@ Add to your project's `.mcp.json`:
 
 `MOLECULE_API_KEY` is sent as `Authorization: Bearer <key>` on every platform
 request. It may be omitted only against a no-auth localhost dev platform
-(`MOLECULE_API_URL=http://localhost:8080`); any real deployment
-(`api.moleculesai.app`, staging) requires it or every call 401s.
+(`MOLECULE_API_URL=http://localhost:8080`); any real tenant host requires it or
+every call 401s. The control-plane domain (`api.moleculesai.app`) is not the
+single-tenant workspace API used by the default registry.
+
+`MOLECULE_API_KEY` is the workspace registry's tenant API bearer. It is
+distinct from `MOLECULE_ORG_API_KEY`, the full-tenant-admin Org API Key used by
+management mode.
 
 ### Cursor
 
@@ -76,9 +85,11 @@ MOLECULE_API_URL=http://localhost:8080 node mcp-server/dist/index.js
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MOLECULE_API_URL` | `http://localhost:8080` | Platform API base URL |
-| `MOLECULE_API_KEY` | — | API key for platform authentication |
-| `MCP_SERVER_PORT` | `3000` | Port (for HTTP/SSE transport) |
+| `MOLECULE_API_URL` | `http://localhost:8080` | Per-tenant workspace API base (`https://<slug>.moleculesai.app` in SaaS) |
+| `MOLECULE_API_KEY` | — | Tenant API bearer; optional only for a no-auth localhost stack |
+
+The executable implements stdio only (`StdioServerTransport`). It does not open
+an HTTP listener or parse transport/port CLI flags.
 
 ## Quick Start
 
@@ -144,8 +155,8 @@ X-Molecule-Org-Id: ${MOLECULE_ORG_ID}
 
 The Org API Key is `org_api_tokens` (sha256-hashed, prefixed, revocable). It
 satisfies the tenant `AdminAuth` / `WorkspaceAuth` gates, and the tenant
-`TenantGuard` requires the `X-Molecule-Org-Id` header to match the EC2 the
-request lands on.
+`TenantGuard` requires the `X-Molecule-Org-Id` header to match the tenant
+selected by the routed host.
 
 > **⚠ Security — the Org API Key is full-tenant-admin AND self-minting.** It
 > authorizes the entire tenant-admin surface of its own org (workspaces,
@@ -207,4 +218,5 @@ pip install molecule-ai-sdk
 WORKSPACE_ID=... PLATFORM_URL=... python3 -c "from molecule_external_workspace import RemoteAgentClient; ..."
 ```
 
-See the full tool registry in `CLAUDE.md` for all 87 tools.
+Run `npm run build:manifest` and inspect `dist/manifest.json` for the exact,
+per-mode registry and input schemas.

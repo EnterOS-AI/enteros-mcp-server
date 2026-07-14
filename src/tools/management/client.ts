@@ -1,10 +1,10 @@
 /**
  * Management-registry HTTP client.
  *
- * The legacy workspace-ops surface (src/api.ts) talks to ONE tenant whose
- * workspace-server is fail-open / co-located, so it sends no Authorization
- * header. The management registry is different: it targets a HARDENED remote
- * tenant host and must present the Org API Key on every call.
+ * Both registries target one per-tenant workspace host. The workspace surface
+ * sends `MOLECULE_API_KEY` when configured; omission is supported only by a
+ * no-auth localhost stack. The management registry requires
+ * `MOLECULE_ORG_API_KEY` (the full-tenant-admin Org API Key) on every call.
  *
  * Auth model (see PLATFORM-MANAGEMENT-API.md §1 / §5 and the tenant router
  * `internal/router/router.go`):
@@ -13,7 +13,7 @@
  *     prefixed, revocable) and is FULL TENANT-ADMIN for its own org. It
  *     satisfies the tenant `AdminAuth` and `WorkspaceAuth` gates.
  *   - `X-Molecule-Org-Id: ${MOLECULE_ORG_ID}` — the tenant `TenantGuard`
- *     rejects any request whose org id doesn't match the EC2 it lands on.
+ *     rejects a request whose org id does not match the routed tenant.
  *
  * SECURITY: the Org API Key is full-tenant-admin AND self-minting (it can
  * mint/revoke more org tokens via /org/tokens). A management MCP holding one
@@ -89,7 +89,7 @@ function managementHeaders(): Record<string, string> | ApiError {
   const orgId = process.env.MOLECULE_ORG_ID;
   const slug = process.env.MOLECULE_ORG_SLUG;
   // The X-Molecule-Org-* routing header disambiguates WHICH tenant a request is
-  // for at the MULTI-TENANT EDGE (`<slug>.moleculesai.app` → the right EC2's
+  // for at the domain edge (`<slug>.moleculesai.app` → that tenant's
   // TenantGuard). On a SELF-HOST / local stack there is no edge and no
   // multi-tenancy: MOLECULE_URL points DIRECTLY at the single-tenant
   // workspace-server, the org has no CP-assigned id/slug (`/org/identity` is
