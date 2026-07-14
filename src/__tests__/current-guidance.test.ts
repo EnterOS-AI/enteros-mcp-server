@@ -21,6 +21,24 @@ describe("current MCP setup guidance", () => {
     expect(api).not.toContain("MOLECULE_RUNTIME_URL");
   });
 
+  it("keeps workspace and management credentials distinct", () => {
+    const readme = read("README.md");
+    const authGuidance = [
+      readme,
+      read("CLAUDE.md"),
+      read("src/api.ts"),
+      read("src/tools/management/client.ts"),
+    ].join("\n");
+
+    expect(authGuidance).not.toMatch(/sends\s+no\s+Authorization/i);
+    expect(readme).toContain(
+      "`MOLECULE_API_KEY` is the workspace registry's tenant API bearer.",
+    );
+    expect(readme).toMatch(
+      /It is\s+distinct from `MOLECULE_ORG_API_KEY`, the full-tenant-admin Org API Key used by\s+management mode\./,
+    );
+  });
+
   it("documents only the implemented stdio transport and entrypoint", () => {
     const guidance = `${read("README.md")}\n${read("CLAUDE.md")}`;
 

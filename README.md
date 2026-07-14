@@ -53,6 +53,10 @@ request. It may be omitted only against a no-auth localhost dev platform
 every call 401s. The control-plane domain (`api.moleculesai.app`) is not the
 single-tenant workspace API used by the default registry.
 
+`MOLECULE_API_KEY` is the workspace registry's tenant API bearer. It is
+distinct from `MOLECULE_ORG_API_KEY`, the full-tenant-admin Org API Key used by
+management mode.
+
 ### Cursor
 
 Add to `.cursor/mcp.json`:
