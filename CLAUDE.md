@@ -69,20 +69,10 @@ Releases are automated via Gitea Actions on every tag matching `v*`.
 
 ### Cutting a Release
 
-```bash
-# Make sure you're on main and all tests pass
-git checkout main
-git pull
-
-# Bump version in package.json, commit
-vim package.json
-git add package.json
-git commit -m "chore: bump version to x.y.z"
-
-# Tag and push
-git tag vx.y.z
-git push origin main --tags
-```
+1. Land the `package.json` version bump through a normal reviewed PR; never push
+   a release commit directly to `main`.
+2. After explicit release approval, verify the intended commit is the current
+   green `main`, create `vX.Y.Z` at that exact commit, and push only the tag.
 
 The workflow (`.gitea/workflows/publish.yml`):
 1. Pushes `v*` tag → triggers the `publish.yml` Gitea Actions workflow
@@ -101,7 +91,7 @@ The workflow (`.gitea/workflows/publish.yml`):
 The server connects to the Molecule AI platform REST API via its own TypeScript
 client (`src/api.ts`). It does not use the Python SDK (`molecule-ai-sdk`) —
 the Python SDK is for remote agents that run outside the platform; this server
-runs as an MCP bridge *on* the operator side.
+connects through the configured Molecule platform API.
 
 ### Environment Variables
 

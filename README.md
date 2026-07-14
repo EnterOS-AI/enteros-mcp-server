@@ -35,7 +35,7 @@ Add to your project's `.mcp.json`:
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "MOLECULE_API_URL": "https://api.moleculesai.app",
+        "MOLECULE_API_URL": "https://<slug>.moleculesai.app",
         "MOLECULE_API_KEY": "your-api-key-here"
       }
     }
@@ -45,8 +45,9 @@ Add to your project's `.mcp.json`:
 
 `MOLECULE_API_KEY` is sent as `Authorization: Bearer <key>` on every platform
 request. It may be omitted only against a no-auth localhost dev platform
-(`MOLECULE_API_URL=http://localhost:8080`); any real deployment
-(`api.moleculesai.app`, staging) requires it or every call 401s.
+(`MOLECULE_API_URL=http://localhost:8080`); any real tenant host requires it or
+every call 401s. The control-plane domain (`api.moleculesai.app`) is not the
+single-tenant workspace API used by the default registry.
 
 ### Cursor
 
@@ -144,8 +145,8 @@ X-Molecule-Org-Id: ${MOLECULE_ORG_ID}
 
 The Org API Key is `org_api_tokens` (sha256-hashed, prefixed, revocable). It
 satisfies the tenant `AdminAuth` / `WorkspaceAuth` gates, and the tenant
-`TenantGuard` requires the `X-Molecule-Org-Id` header to match the EC2 the
-request lands on.
+`TenantGuard` requires the `X-Molecule-Org-Id` header to match the tenant
+selected by the routed host.
 
 > **⚠ Security — the Org API Key is full-tenant-admin AND self-minting.** It
 > authorizes the entire tenant-admin surface of its own org (workspaces,
