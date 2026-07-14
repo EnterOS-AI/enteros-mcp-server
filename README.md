@@ -6,7 +6,7 @@ MCP server that exposes Molecule AI platform operations as tools for AI coding a
 
 The authoritative tool list is generated from each real `createServer()` mode by
 `npm run build:manifest` and written to `dist/manifest.json`. On this exact
-source, generation reports **96 workspace-mode tools** and **46 management-mode
+source, generation reports **93 workspace-mode tools** and **46 management-mode
 tools**; tests ratchet those counts to the registrations. The highlights below
 are intentionally not a hand-maintained full list.
 

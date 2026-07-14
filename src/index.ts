@@ -111,7 +111,6 @@ export {
   handleSearchMemory,
   handleDeleteMemory,
   handleSessionSearch,
-  handleGetSharedContext,
   handleSetKV,
   handleGetKV,
   handleListKV,
@@ -185,8 +184,6 @@ export {
   handleImportBundle,
   handleGetViewport,
   handleSetViewport,
-  handleExpandTeam,
-  handleCollapseTeam,
 } from "./tools/discovery.js";
 
 export {
@@ -364,7 +361,7 @@ async function main() {
       mode: "management",
     });
   } else {
-    logInfo("Molecule AI MCP server running on stdio (96 tools available)", { transport: "stdio", toolCount: 96 });
+    logInfo("Molecule AI MCP server running on stdio (93 tools available)", { transport: "stdio", toolCount: 93 });
   }
 }
 
