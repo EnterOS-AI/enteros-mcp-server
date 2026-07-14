@@ -39,6 +39,28 @@ describe("current MCP setup guidance", () => {
     );
   });
 
+  it("states the workspace bearer contract in the management client", () => {
+    const managementClient = read("src/tools/management/client.ts").replace(
+      /\n\s*\*\s?/g,
+      " ",
+    );
+
+    expect(managementClient).toMatch(
+      /The workspace surface sends\s+`MOLECULE_API_KEY` when configured/,
+    );
+  });
+
+  it("states the management bearer contract in the management client", () => {
+    const managementClient = read("src/tools/management/client.ts").replace(
+      /\n\s*\*\s?/g,
+      " ",
+    );
+
+    expect(managementClient).toMatch(
+      /The management registry requires\s+`MOLECULE_ORG_API_KEY` \(the full-tenant-admin Org API Key\) on every call/,
+    );
+  });
+
   it("documents only the implemented stdio transport and entrypoint", () => {
     const guidance = `${read("README.md")}\n${read("CLAUDE.md")}`;
 

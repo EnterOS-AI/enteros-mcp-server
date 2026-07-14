@@ -1,10 +1,10 @@
 /**
  * Management-registry HTTP client.
  *
- * Both registries target one per-tenant workspace host. The default workspace
- * surface sends MOLECULE_API_KEY when configured (omission is supported only by
- * a no-auth localhost stack); the management registry requires an Org API Key
- * on every call.
+ * Both registries target one per-tenant workspace host. The workspace surface
+ * sends `MOLECULE_API_KEY` when configured; omission is supported only by a
+ * no-auth localhost stack. The management registry requires
+ * `MOLECULE_ORG_API_KEY` (the full-tenant-admin Org API Key) on every call.
  *
  * Auth model (see PLATFORM-MANAGEMENT-API.md §1 / §5 and the tenant router
  * `internal/router/router.go`):
