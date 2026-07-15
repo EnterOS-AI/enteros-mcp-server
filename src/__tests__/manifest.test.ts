@@ -106,9 +106,10 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "management";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names).toHaveLength(46);
+    expect(names).toHaveLength(45);
     expect(new Set(names).size).toBe(names.length); // no duplicate registrations
     expect(names).toContain("provision_workspace");
+    expect(names).not.toContain("recreate_workspace");
     expect(names).not.toContain("chat_with_agent"); // workspace-only verb absent
   });
 
