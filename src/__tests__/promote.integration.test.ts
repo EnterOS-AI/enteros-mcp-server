@@ -31,6 +31,7 @@ describe("promote v2 real MCP session", () => {
   let fakeCP: http.Server;
   let client: Client;
   let closeSession: () => Promise<void>;
+  let redirectNextPromote = false;
 
   beforeAll(async () => {
     fakeCP = http.createServer(async (req, res) => {
@@ -41,6 +42,15 @@ describe("promote v2 real MCP session", () => {
         authorization: req.headers.authorization,
         body,
       });
+      if (
+        redirectNextPromote &&
+        new URL(req.url || "/", "http://internal").pathname === "/cp/admin/promote"
+      ) {
+        redirectNextPromote = false;
+        res.writeHead(307, { Location: "/redirected-promote" });
+        res.end();
+        return;
+      }
       const dryRun = body.dry_run === true;
       const tenantResult = {
         slug: "tenant-integration",
@@ -157,5 +167,21 @@ describe("promote v2 real MCP session", () => {
       verified_on_target: 1,
       stragglers: [],
     });
+  });
+
+  it("fails closed without replaying a wet POST when the CP redirects", async () => {
+    const before = requests.length;
+    redirectNextPromote = true;
+
+    const result = parseToolJson(await client.callTool({
+      name: "promote_to_production",
+      arguments: { dry_run: false, confirm: true },
+    }));
+
+    expect(result.error).toBe("PROMOTE_FAILED");
+    expect(requests.slice(before)).toEqual([expect.objectContaining({
+      method: "POST",
+      path: "/cp/admin/promote",
+    })]);
   });
 });

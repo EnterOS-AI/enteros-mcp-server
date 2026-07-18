@@ -78,6 +78,7 @@ async function cpCall<T = unknown>(
   try {
     const res = await fetch(`${base}${path}`, {
       method,
+      redirect: "error",
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "curl/8.4.0",
