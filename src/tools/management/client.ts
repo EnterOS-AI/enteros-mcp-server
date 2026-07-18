@@ -51,25 +51,12 @@ export function defaultOrgId(): string | undefined {
   return process.env.MOLECULE_ORG_ID;
 }
 
-/**
- * The CALLER'S OWN workspace id — the "self" a self-defaulting management tool
- * (install_plugin / list_available_plugins / get_conversation_history) acts on
- * when the caller omits workspace_id.
- *
- * SSOT for the self-workspace lookup. Reads MOLECULE_WORKSPACE_ID first (the
- * concierge-specific alias the platform-MCP env injector sets — core#b59d243e),
- * then falls back to WORKSPACE_ID, the UNIVERSAL workspace-id env every
- * workspace container carries (workspace-server buildContainerEnv:
- * `WORKSPACE_ID=<uuid>`). The fallback makes zero-config self-install work on
- * EVERY tenant image regardless of version skew: images predating the concierge
- * env fix (e.g. molecule-tenant:staging-40779bd / f5071e5) never set
- * MOLECULE_WORKSPACE_ID, so without this fallback the SELF default failed closed
- * with INVALID_ARGUMENTS on the live concierge (core#182 follow-up). WORKSPACE_ID
- * is always present, so this is robust and not tenant-image-version-coupled.
- */
-export function selfWorkspaceId(): string | undefined {
-  return process.env.MOLECULE_WORKSPACE_ID || process.env.WORKSPACE_ID;
-}
+// The CALLER'S OWN workspace id — the "self" a self-defaulting management tool
+// (install_plugin / list_available_plugins / get_conversation_history) acts on
+// when the caller omits workspace_id. LIFTED to the shared utils/context.ts so
+// the self-mode schedule tools reuse the exact same lookup (single SSOT, not a
+// duplicate). Re-exported here so existing importers (./index.js) are unchanged.
+export { selfWorkspaceId } from "../../utils/context.js";
 
 /**
  * Build the auth headers for a tenant-host request. Returns an ApiError

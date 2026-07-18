@@ -246,9 +246,31 @@ export function isManagementMode(): boolean {
   return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
 }
 
+/**
+ * Returns true when the server should run as the SELF server (audience=self):
+ * the workspace acting on ITSELF, authenticated with its OWN workspace token.
+ * Driven by MOLECULE_MCP_MODE=self.
+ *
+ * This is the third, most-restricted mode. Unlike the default workspace-ops
+ * surface (org/operator API key) and the management surface (org-admin key),
+ * self mode carries only the non-privileged per-workspace token (read per-call
+ * from /configs/.auth_token; see api.ts::authHeaders) and registers ONLY the
+ * schedule tools. A workspace token is bound by core's WorkspaceAuth to its own
+ * :id — a foreign :id 401s — and would 401 on any management-tier endpoint
+ * regardless, so the surface is self-scoped by construction. Security-sensitive:
+ * see the self-mode branch in authHeaders() (fail-closed, never the org key).
+ */
+export function isSelfMode(): boolean {
+  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "self";
+}
+
 export function createServer() {
   const srv = new McpServer({
-    name: isManagementMode() ? "molecule-platform" : "molecule-a2a",
+    name: isManagementMode()
+      ? "molecule-platform"
+      : isSelfMode()
+        ? "molecule-self"
+        : "molecule-a2a",
     version: "1.0.0",
   });
 
@@ -264,6 +286,21 @@ export function createServer() {
     // Unified requests/inbox tools (RFC P2) — registered in BOTH modes, same
     // as create_issue: an agent on either surface can raise/answer requests.
     registerRequestTools(srv);
+    return srv;
+  }
+
+  if (isSelfMode()) {
+    // Self registry (audience=self) — the workspace acting on ITSELF with its
+    // OWN per-workspace token (fail-closed; see api.ts::authHeaders). Register
+    // ONLY the schedule tools: NO workspace/agent/secret/file/plugin/channel/
+    // delegation/etc. tools and NO management tools. The schedule handlers
+    // self-default workspace_id to the caller's own id (see tools/schedules.ts).
+    //
+    // Withholding every other tool is defence-in-depth: a workspace token would
+    // already 401 on those endpoints, but a self-mode agent must not even be
+    // offered a management/cross-workspace verb. This branch is BEFORE the
+    // workspace-ops fan-out so none of that surface is ever registered here.
+    registerScheduleTools(srv);
     return srv;
   }
 
@@ -345,6 +382,11 @@ async function main() {
     logInfo("Molecule AI MANAGEMENT MCP server running on stdio (Org API Key, tenant host)", {
       transport: "stdio",
       mode: "management",
+    });
+  } else if (isSelfMode()) {
+    logInfo("Molecule AI SELF MCP server running on stdio (workspace token, self-scoped schedule tools)", {
+      transport: "stdio",
+      mode: "self",
     });
   } else {
     logInfo("Molecule AI MCP server running on stdio (85 tools available)", { transport: "stdio", toolCount: 85 });

@@ -1,4 +1,46 @@
+import { readFileSync } from "node:fs";
 import { error as logError } from "./utils/logger.js";
+
+// Default on-disk location of the per-workspace token inside a workspace
+// container. This is the restart-ROTATED file written by the runtime
+// (platform_auth.py) — the in-container SSOT for the workspace token. It is
+// NOT an env var (an env-injected token can't be re-read after rotation). The
+// self-mode auth path reads it fresh on every call. Overridable via
+// MOLECULE_WORKSPACE_TOKEN_FILE for tests / non-default layouts.
+const DEFAULT_WORKSPACE_TOKEN_FILE = "/configs/.auth_token";
+
+/**
+ * True when the server runs in SELF mode (audience=self) — the workspace acting
+ * on itself with its own workspace token. Mirrors index.ts::isSelfMode(), but
+ * is duplicated here as a LOCAL (unexported) check on purpose: index.ts imports
+ * from this module, so importing isSelfMode() the other way would create an
+ * api.ts ⇄ index.ts import cycle. The single source of the rule is the env var
+ * name + literal, and both readers agree on it.
+ */
+function isSelfModeLocal(): boolean {
+  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "self";
+}
+
+/**
+ * Read the per-workspace token for SELF mode from the on-disk auth-token file,
+ * FRESH on every call (never cached at module load) so a restart-driven token
+ * rotation is picked up without restarting this Node child.
+ *
+ * Returns the trimmed token, or "" when the file is missing / empty / unreadable
+ * — the caller then omits the Authorization header entirely (fail-closed): the
+ * request 401s rather than silently falling back to any other credential.
+ */
+function readWorkspaceToken(): string {
+  const path =
+    process.env.MOLECULE_WORKSPACE_TOKEN_FILE || DEFAULT_WORKSPACE_TOKEN_FILE;
+  try {
+    return readFileSync(path, "utf8").trim();
+  } catch {
+    // Missing/unreadable file → fail closed. Intentionally swallowed: a self
+    // request with no token must 401 at core, never escalate to the org key.
+    return "";
+  }
+}
 
 // Read the per-tenant workspace API base URL from environment.
 // Priority: MOLECULE_API_URL (canonical CLI/SDK env var, per platform docs).
@@ -47,9 +89,32 @@ export function isApiError(v: unknown): v is ApiError {
  *
  * The `extraHeaders` parameter on apiCall() remains the seam for tenant routes
  * that require an additional endpoint-specific header.
+ *
+ * SELF mode (MOLECULE_MCP_MODE=self, audience=self) is a SEPARATE, fail-closed
+ * bearer path handled first: the bearer is the per-workspace token read from
+ * disk per call, and it is used EXCLUSIVELY. In self mode we NEVER read
+ * MOLECULE_API_KEY / MOLECULE_API_TOKEN (on a concierge box that is the
+ * org-admin key — sending it here would let a self-scoped tool act org-wide)
+ * and we do NOT set X-Molecule-Org-Id (the workspace token is bound to its own
+ * :id by core's WorkspaceAuth; a foreign :id 401s intrinsically). A missing or
+ * empty token file yields NO Authorization header so the call 401s.
  */
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
+
+  // Self mode: workspace-token-ONLY, fail-closed. Handled before — and with an
+  // early return that bypasses — the org/operator-key path below. Do NOT add an
+  // org-id routing header here (self is intrinsically self-scoped).
+  if (isSelfModeLocal()) {
+    const wsToken = readWorkspaceToken();
+    if (wsToken.length > 0) {
+      headers.Authorization = `Bearer ${wsToken}`;
+    }
+    // Empty/missing token → no Authorization header → 401 (fail closed).
+    // CRITICAL: never fall through to MOLECULE_API_KEY / MOLECULE_API_TOKEN.
+    return headers;
+  }
+
   const key = process.env.MOLECULE_API_KEY || process.env.MOLECULE_API_TOKEN;
   if (key && key.length > 0) {
     headers.Authorization = `Bearer ${key}`;
