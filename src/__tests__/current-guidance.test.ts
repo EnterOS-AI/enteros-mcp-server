@@ -94,8 +94,15 @@ describe("current MCP setup guidance", () => {
     expect(readme).toContain("dist/manifest.json");
     expect(claude).toContain("dist/manifest.json");
     expect(readme).toContain("85 workspace-mode tools");
-    expect(readme).toMatch(/45\s+management-mode\s+tools/);
+    expect(readme).toMatch(/46\s+management-mode\s+tools/);
     expect(claude).toContain("85 workspace-mode tools");
-    expect(claude).toMatch(/45\s+management-mode\s+tools/);
+    expect(claude).toMatch(/46\s+management-mode\s+tools/);
+  });
+
+  it("keeps the production promote capability distinct and fail-closed", () => {
+    const guidance = `${read("README.md")}\n${read("CLAUDE.md")}\n${read("src/tools/management/cp_admin.ts")}`;
+    expect(guidance).toContain("CP_PROMOTE_PROD_API_TOKEN");
+    expect(guidance).toMatch(/generic CP admin bearer is never/i);
+    expect(guidance).toContain("contracts/promote-request.contract.json");
   });
 });

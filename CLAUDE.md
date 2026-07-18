@@ -18,6 +18,12 @@ npm run build
 # Run tests (Jest, config in jest.config.cjs)
 npm test
 
+# Run the real MCP transport / local HTTP integration suite
+npm run test:integration
+
+# Verify the vendored promote contract is byte-identical to the SDK SSOT
+bash .gitea/scripts/check-promote-request-vendor-sync.sh
+
 # Type check without building
 npm run lint    # if present
 ```
@@ -142,9 +148,16 @@ src/
 
 `npm run build:manifest` composes the real server in both modes and writes the
 authoritative names, descriptions, and schemas to `dist/manifest.json`. The
-current generated totals are **85 workspace-mode tools** and **45
+current generated totals are **85 workspace-mode tools** and **46
 management-mode tools**, ratcheted by the registration tests. The tables below
 are a workspace-mode reference, not an exhaustive registry.
+
+The management-only `promote_to_production` tool is bound to the exact vendored
+`contracts/promote-request.contract.json`, which required CI pins byte-for-byte
+to the SDK SSOT. Production uses only `CP_PROMOTE_PROD_API_TOKEN`; the generic
+CP admin bearer is never a production substitute. The tool defaults to a dry
+plan, requires `confirm:true` for every wet call, and accepts completion only
+from synchronous HTTP 200 exact immutable tenant-fleet evidence.
 
 ### Workspace Tools (9)
 | Tool | Description |
