@@ -58,6 +58,7 @@ const WS_TOKEN = "wsk_self_token_abc123"; // the per-workspace token (self)
 const ORG_KEY = "org_admin_key_MUST_NOT_LEAK"; // org-admin key on a concierge box
 const OWN_WS = "ws-self-own-1111";
 const FOREIGN_WS = "ws-someone-else-9999";
+const ORG_ID = "org-routing-uuid-7777"; // tenant ROUTING id (X-Molecule-Org-Id), not a credential
 
 /** Mock fetch returning a JSON payload; records the last call args. */
 function mockFetch(payload: unknown, ok = true, status = 200) {
@@ -105,7 +106,9 @@ beforeEach(() => {
   // Deliberately place the ORG-ADMIN key in env — self mode must NEVER use it.
   process.env.MOLECULE_API_KEY = ORG_KEY;
   delete process.env.MOLECULE_API_TOKEN;
-  delete process.env.MOLECULE_ORG_ID;
+  // The tenant ROUTING id the SaaS gateway requires (X-Molecule-Org-Id). Present
+  // in self mode too — it selects the tenant, it is NOT a credential.
+  process.env.MOLECULE_ORG_ID = ORG_ID;
   delete process.env.MOLECULE_ORGANIZATION_ID;
   delete process.env.MOLECULE_ORG;
   // Fresh on-disk token file per test; padded to prove the reader trims it.
@@ -159,8 +162,11 @@ describe("(a) self-scoped: foreign workspace_id can't be reached", () => {
     expect(url).toBe(`${PLATFORM_URL}/workspaces/${FOREIGN_WS}/schedules`);
     expect(headersOf(init).Authorization).toBe(`Bearer ${WS_TOKEN}`);
     expect(headersOf(init).Authorization).not.toBe(`Bearer ${ORG_KEY}`);
-    // No org routing header that could aim a credential at another tenant.
-    expect(headersOf(init)["X-Molecule-Org-Id"]).toBeUndefined();
+    // The tenant ROUTING header IS present (the SaaS API requires it) — but it is
+    // NOT a privilege: the bearer is the per-workspace token, so core WorkspaceAuth
+    // still 401s the foreign :id below. Routing selects the tenant; the token gates
+    // the workspace.
+    expect(headersOf(init)["X-Molecule-Org-Id"]).toBe(ORG_ID);
     // core rejected it — surfaced as an error, not a successful write.
     expect(res.error).toBe("HTTP 401");
   });
@@ -170,12 +176,22 @@ describe("(a) self-scoped: foreign workspace_id can't be reached", () => {
 // (b) org key present in env → self mode uses the token FILE, never the org key
 // ===========================================================================
 describe("(b) never uses MOLECULE_API_KEY as the self bearer", () => {
-  it("authHeaders() returns the token-file bearer, not the env org key, and no org-id", () => {
+  it("authHeaders() returns the token-file bearer + org ROUTING id, never the org key", () => {
     const h = authHeaders();
     expect(h.Authorization).toBe(`Bearer ${WS_TOKEN}`);
     expect(h.Authorization).not.toBe(`Bearer ${ORG_KEY}`);
+    // The tenant ROUTING header is present (SaaS requires it); it is the org UUID,
+    // never a credential.
+    expect(h["X-Molecule-Org-Id"]).toBe(ORG_ID);
+    // Belt-and-suspenders: the org KEY must not appear anywhere in the headers.
+    expect(JSON.stringify(h)).not.toContain(ORG_KEY);
+  });
+
+  it("self mode omits X-Molecule-Org-Id when no org id is configured (never falls back to the key)", () => {
+    delete process.env.MOLECULE_ORG_ID;
+    const h = authHeaders();
+    expect(h.Authorization).toBe(`Bearer ${WS_TOKEN}`);
     expect(h["X-Molecule-Org-Id"]).toBeUndefined();
-    // Belt-and-suspenders: the org key must not appear anywhere in the headers.
     expect(JSON.stringify(h)).not.toContain(ORG_KEY);
   });
 
@@ -197,10 +213,14 @@ describe("(b) never uses MOLECULE_API_KEY as the self bearer", () => {
     expect(headersOf(lastCall(f).init).Authorization).toBe("Bearer wsk_rotated_v2");
   });
 
-  it("does NOT change non-self behavior: with mode unset, authHeaders uses MOLECULE_API_KEY", () => {
+  it("does NOT change non-self behavior: with mode unset, authHeaders uses MOLECULE_API_KEY (+ org routing id)", () => {
     delete process.env.MOLECULE_MCP_MODE;
     delete process.env.MOLECULE_WORKSPACE_TOKEN_FILE;
-    expect(authHeaders()).toEqual({ Authorization: `Bearer ${ORG_KEY}` });
+    // Management mode: org KEY bearer + the org routing id (unchanged behavior).
+    expect(authHeaders()).toEqual({
+      Authorization: `Bearer ${ORG_KEY}`,
+      "X-Molecule-Org-Id": ORG_ID,
+    });
   });
 });
 

@@ -84,16 +84,18 @@ export function isApiError(v: unknown): v is ApiError {
  * disk per call, and it is used EXCLUSIVELY. In self mode we NEVER read
  * MOLECULE_API_KEY / MOLECULE_API_TOKEN (on a concierge box that is the
  * org-admin key — sending it here would let a self-scoped tool act org-wide)
- * and we do NOT set X-Molecule-Org-Id (the workspace token is bound to its own
- * :id by core's WorkspaceAuth; a foreign :id 401s intrinsically). A missing or
- * empty token file yields NO Authorization header so the call 401s.
+ * and we set X-Molecule-Org-Id ONLY as the tenant ROUTING header (never the org
+ * key): the bearer stays the per-workspace token, so core's WorkspaceAuth binds
+ * the call to its own :id (a foreign :id 401s intrinsically) — the org id merely
+ * selects the tenant, which the SaaS tenant API REQUIRES on every request
+ * (TENANT_ORG_HEADER_REQUIRED otherwise). A missing or empty token file yields
+ * NO Authorization header so the call 401s.
  */
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
 
-  // Self mode: workspace-token-ONLY, fail-closed. Handled before — and with an
-  // early return that bypasses — the org/operator-key path below. Do NOT add an
-  // org-id routing header here (self is intrinsically self-scoped).
+  // Self mode: workspace-token-ONLY AUTH, fail-closed. Handled before — and with
+  // an early return that bypasses — the org/operator-key path below.
   if (isSelfMode()) {
     const wsToken = readWorkspaceToken();
     if (wsToken.length > 0) {
@@ -101,6 +103,19 @@ export function authHeaders(): Record<string, string> {
     }
     // Empty/missing token → no Authorization header → 401 (fail closed).
     // CRITICAL: never fall through to MOLECULE_API_KEY / MOLECULE_API_TOKEN.
+    //
+    // Attach the tenant ROUTING header. This is NOT a privilege: the bearer stays
+    // the per-workspace token (core WorkspaceAuth still binds to the OWN :id — a
+    // foreign :id 401s), the org id only selects the tenant. The SaaS tenant API
+    // requires X-Molecule-Org-Id on EVERY request (400 TENANT_ORG_HEADER_REQUIRED
+    // otherwise), so omitting it makes every self-mode tenant call fail.
+    const selfOrgId =
+      process.env.MOLECULE_ORG_ID ||
+      process.env.MOLECULE_ORGANIZATION_ID ||
+      process.env.MOLECULE_ORG;
+    if (selfOrgId && selfOrgId.length > 0) {
+      headers["X-Molecule-Org-Id"] = selfOrgId;
+    }
     return headers;
   }
 
@@ -252,3 +267,4 @@ export async function platformGet<T = unknown>(
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
