@@ -49,6 +49,8 @@ import {
   PLATFORM_URL,
   handleListSchedules,
   handleCreateSchedule,
+  handleDeleteSchedule,
+  handleRunSchedule,
 } from "../index.js";
 import { authHeaders } from "../api.js";
 
@@ -287,6 +289,83 @@ describe("(c) self mode registers only the schedule tools", () => {
     expect(srv.registeredToolNames).toHaveLength(SCHEDULE_TOOLS.length);
     expect(new Set(srv.registeredToolNames).size).toBe(
       srv.registeredToolNames.length,
+    );
+  });
+});
+
+// ===========================================================================
+// #1 REGRESSION GUARD — workspace_id self-defaults ONLY in self mode.
+//
+// The schedule tools register in BOTH self mode AND the DEFAULT a2a/workspace-
+// ops mode (org/operator key that can target ANY workspace). A prior change
+// narrowed workspace_id to optional and self-defaulted it in ALL modes, so an
+// OMITTED id silently retargeted to the operator's OWN workspace — a silent
+// wrong-workspace list/run/delete. These tests pin the mode gate from BOTH
+// sides (inversion):
+//
+//   • default mode + omitted  → INVALID_ARGUMENTS, NO fetch. If the self-default
+//     were re-applied in default mode, WORKSPACE_ID (set to OWN_WS in
+//     beforeEach) would resolve and fetch WOULD be called → both assertions
+//     fail. (Guards against RE-INTRODUCING the regression.)
+//   • self mode + omitted     → resolves to the caller's OWN id, fetch IS made.
+//     If the gate were inverted (self-default only in NON-self mode), self mode
+//     would fail closed with INVALID_ARGUMENTS and no fetch → this fails.
+//     (Guards against a gate that is present but backwards.)
+// ===========================================================================
+describe("#1 workspace_id self-defaults ONLY in self mode", () => {
+  it("DEFAULT mode + OMITTED workspace_id → INVALID_ARGUMENTS, no fetch (does NOT self-default to the operator's own workspace)", async () => {
+    delete process.env.MOLECULE_MCP_MODE; // default a2a / workspace-ops mode
+    // WORKSPACE_ID is still OWN_WS from beforeEach — the regression would have
+    // silently defaulted to it. Prove it does not.
+    expect(isSelfMode()).toBe(false);
+    expect(process.env.WORKSPACE_ID).toBe(OWN_WS);
+    const f = mockFetch([{ id: "s1" }]);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleListSchedules({}));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("DEFAULT mode + OMITTED workspace_id on the DESTRUCTIVE delete path → INVALID_ARGUMENTS, no fetch", async () => {
+    delete process.env.MOLECULE_MCP_MODE;
+    const f = mockFetch({ ok: true });
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(
+      await handleDeleteSchedule({ schedule_id: "sched-123" }),
+    );
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("DEFAULT mode + EXPLICIT workspace_id → targets that workspace (org/operator key can act on any workspace; not over-restricted)", async () => {
+    delete process.env.MOLECULE_MCP_MODE;
+    const f = mockFetch([{ id: "s1" }]);
+    global.fetch = f as unknown as typeof fetch;
+    await handleRunSchedule({ workspace_id: FOREIGN_WS, schedule_id: "s9" });
+    expect(lastCall(f).url).toBe(
+      `${PLATFORM_URL}/workspaces/${FOREIGN_WS}/schedules/s9/run`,
+    );
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("SELF mode + OMITTED workspace_id → self-resolves to the caller's OWN id and fetches (beforeEach already sets self mode + WORKSPACE_ID)", async () => {
+    // beforeEach: MOLECULE_MCP_MODE=self, WORKSPACE_ID=OWN_WS.
+    expect(isSelfMode()).toBe(true);
+    const f = mockFetch([{ id: "s1" }]);
+    global.fetch = f as unknown as typeof fetch;
+    await handleListSchedules({});
+    expect(lastCall(f).url).toBe(
+      `${PLATFORM_URL}/workspaces/${OWN_WS}/schedules`,
+    );
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("SELF mode + EXPLICIT workspace_id is still allowed (carries only the self-bound token; core 401s a foreign id — see suite (a))", async () => {
+    const f = mockFetch([{ id: "s1" }]);
+    global.fetch = f as unknown as typeof fetch;
+    await handleListSchedules({ workspace_id: FOREIGN_WS });
+    expect(lastCall(f).url).toBe(
+      `${PLATFORM_URL}/workspaces/${FOREIGN_WS}/schedules`,
     );
   });
 });

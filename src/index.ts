@@ -12,7 +12,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { PLATFORM_URL, apiCall, platformGet, isApiError } from "./api.js";
+import { PLATFORM_URL, apiCall, platformGet, isApiError, authHeaders } from "./api.js";
+import { isSelfMode } from "./mode.js";
 import { info as logInfo, warn as logWarn, error as logError } from "./utils/logger.js";
 import { registerWorkspaceTools } from "./tools/workspaces.js";
 import { registerAgentTools } from "./tools/agents.js";
@@ -246,23 +247,13 @@ export function isManagementMode(): boolean {
   return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
 }
 
-/**
- * Returns true when the server should run as the SELF server (audience=self):
- * the workspace acting on ITSELF, authenticated with its OWN workspace token.
- * Driven by MOLECULE_MCP_MODE=self.
- *
- * This is the third, most-restricted mode. Unlike the default workspace-ops
- * surface (org/operator API key) and the management surface (org-admin key),
- * self mode carries only the non-privileged per-workspace token (read per-call
- * from /configs/.auth_token; see api.ts::authHeaders) and registers ONLY the
- * schedule tools. A workspace token is bound by core's WorkspaceAuth to its own
- * :id — a foreign :id 401s — and would 401 on any management-tier endpoint
- * regardless, so the surface is self-scoped by construction. Security-sensitive:
- * see the self-mode branch in authHeaders() (fail-closed, never the org key).
- */
-export function isSelfMode(): boolean {
-  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "self";
-}
+// isSelfMode() — "the workspace acting on ITSELF with its OWN per-workspace
+// token" — now lives in the leaf module ./mode.ts (the SSOT for the
+// MOLECULE_MCP_MODE selector) so BOTH this entry point and the low-level
+// api.ts helper can read it without an index.ts ⇄ api.ts import cycle. Imported
+// above for internal use in createServer()/main(); re-exported here so existing
+// importers (tests, SDK consumers) keep resolving it from "./index.js".
+export { isSelfMode } from "./mode.js";
 
 export function createServer() {
   const srv = new McpServer({
@@ -339,12 +330,42 @@ async function main() {
     });
   }
 
-  // Auth preflight (issue #36). If MOLECULE_API_KEY is set, fire one cheap
-  // auth-gated GET so a rejected key is surfaced LOUDLY at startup rather than
-  // silently 401-ing on every tool call. We reuse the discovery `/templates`
-  // path (same endpoint as the list_templates tool). We never crash on a bad
-  // key — the server still starts (e.g. so localhost no-auth tools work).
-  if (process.env.MOLECULE_API_KEY && process.env.MOLECULE_API_KEY.length > 0) {
+  // Auth preflight (issue #36). Surface a mis-configured credential LOUDLY at
+  // startup rather than letting every tool call silently 401. The credential —
+  // and therefore what we probe and how we label it — depends on the mode.
+  if (isSelfMode()) {
+    // SELF mode (audience=self): the bearer is the per-workspace token read
+    // per-call from disk (api.ts::authHeaders → readWorkspaceToken), NOT
+    // MOLECULE_API_KEY. authHeaders() is the SSOT for "what credential will
+    // actually be sent", so we ask it directly: an Authorization header means a
+    // self bearer is present.
+    //
+    // We deliberately do NOT fire the discovery `/templates` probe here: it is
+    // an org/discovery-tier endpoint that self mode does not even register, and
+    // a non-privileged workspace token may legitimately be denied it — a 403
+    // there would be a FALSE "rejected credential" alarm on every self startup.
+    // The workspace token's validity is instead proven fail-closed on the first
+    // real schedule call.
+    const hasSelfBearer = "Authorization" in authHeaders();
+    if (hasSelfBearer) {
+      logInfo(
+        `Self mode: authenticating with the per-workspace token (fail-closed, read per call). Requests to ${PLATFORM_URL} carry the workspace token, not MOLECULE_API_KEY.`,
+        { platformUrl: PLATFORM_URL, mode: "self" },
+      );
+    } else {
+      // Fail-closed: no token file (or empty) → every schedule call will 401.
+      // This is the loud self-mode surface for a missing credential.
+      logWarn(
+        `Self mode: no workspace token available — the auth-token file is missing or empty, so schedule tools will 401 until it is written. NOT falling back to MOLECULE_API_KEY (fail-closed by design).`,
+        { platformUrl: PLATFORM_URL, mode: "self" },
+      );
+    }
+  } else if (process.env.MOLECULE_API_KEY && process.env.MOLECULE_API_KEY.length > 0) {
+    // DEFAULT / management modes: the bearer is MOLECULE_API_KEY. Fire one cheap
+    // auth-gated GET (the discovery `/templates` path, same endpoint as the
+    // list_templates tool) so a rejected key is surfaced loudly. We never crash
+    // on a bad key — the server still starts (e.g. so localhost no-auth tools
+    // work).
     try {
       const res = await platformGet("/templates");
       if (isApiError(res)) {

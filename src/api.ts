@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { error as logError } from "./utils/logger.js";
+import { isSelfMode } from "./mode.js";
 
 // Default on-disk location of the per-workspace token inside a workspace
 // container. This is the restart-ROTATED file written by the runtime
@@ -8,18 +9,6 @@ import { error as logError } from "./utils/logger.js";
 // self-mode auth path reads it fresh on every call. Overridable via
 // MOLECULE_WORKSPACE_TOKEN_FILE for tests / non-default layouts.
 const DEFAULT_WORKSPACE_TOKEN_FILE = "/configs/.auth_token";
-
-/**
- * True when the server runs in SELF mode (audience=self) — the workspace acting
- * on itself with its own workspace token. Mirrors index.ts::isSelfMode(), but
- * is duplicated here as a LOCAL (unexported) check on purpose: index.ts imports
- * from this module, so importing isSelfMode() the other way would create an
- * api.ts ⇄ index.ts import cycle. The single source of the rule is the env var
- * name + literal, and both readers agree on it.
- */
-function isSelfModeLocal(): boolean {
-  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "self";
-}
 
 /**
  * Read the per-workspace token for SELF mode from the on-disk auth-token file,
@@ -105,7 +94,7 @@ export function authHeaders(): Record<string, string> {
   // Self mode: workspace-token-ONLY, fail-closed. Handled before — and with an
   // early return that bypasses — the org/operator-key path below. Do NOT add an
   // org-id routing header here (self is intrinsically self-scoped).
-  if (isSelfModeLocal()) {
+  if (isSelfMode()) {
     const wsToken = readWorkspaceToken();
     if (wsToken.length > 0) {
       headers.Authorization = `Bearer ${wsToken}`;
