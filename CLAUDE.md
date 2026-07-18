@@ -142,7 +142,7 @@ src/
 
 `npm run build:manifest` composes the real server in both modes and writes the
 authoritative names, descriptions, and schemas to `dist/manifest.json`. The
-current generated totals are **93 workspace-mode tools** and **46
+current generated totals are **85 workspace-mode tools** and **45
 management-mode tools**, ratcheted by the registration tests. The tables below
 are a workspace-mode reference, not an exhaustive registry.
 
@@ -224,18 +224,6 @@ are a workspace-mode reference, not an exhaustive registry.
 | `list_plugin_sources` | List registered plugin install-source schemes |
 | `list_available_plugins` | List plugins from registry filtered by workspace runtime |
 | `check_plugin_compatibility` | Preflight: which installed plugins would break if runtime changed? |
-
-### Channels Tools (8)
-| Tool | Description |
-|------|-------------|
-| `list_channel_adapters` | List available social channel adapters (Telegram, Slack, etc.) |
-| `list_channels` | List social channels connected to a workspace |
-| `add_channel` | Connect a social channel to a workspace |
-| `update_channel` | Update a channel's config, enabled state, or allowed users |
-| `remove_channel` | Remove a social channel from a workspace |
-| `send_channel_message` | Send an outbound message from a workspace to a channel |
-| `test_channel` | Send a test message to verify a channel connection |
-| `discover_channel_chats` | Auto-detect chat IDs for a given bot token |
 
 ### Schedules Tools (6)
 | Tool | Description |

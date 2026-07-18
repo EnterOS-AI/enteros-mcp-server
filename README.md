@@ -6,7 +6,7 @@ MCP server that exposes Molecule AI platform operations as tools for AI coding a
 
 The authoritative tool list is generated from each real `createServer()` mode by
 `npm run build:manifest` and written to `dist/manifest.json`. On this exact
-source, generation reports **93 workspace-mode tools** and **46 management-mode
+source, generation reports **85 workspace-mode tools** and **45 management-mode
 tools**; tests ratchet those counts to the registrations. The highlights below
 are intentionally not a hand-maintained full list.
 
@@ -19,12 +19,17 @@ are intentionally not a hand-maintained full list.
 | Files | list, read, write, delete, replace_all, get_config, update_config |
 | Memory | commit, search, delete (HMA scopes) + memory_set/get/list/delete (K/V) |
 | Plugins | list registry, list installed, install, uninstall, list sources, check compatibility |
-| Channels | list adapters, list, add, update, remove, send, test, discover chats |
 | Schedules | list, create, update, delete, run, get history |
 | Discovery | list peers, discover, check_access, list events, import/export, canvas viewport |
 | Requests / Inbox | `create_request`, `list_inbox`, `check_requests`, `get_request`, `respond_request`, `add_request_message`, `cancel_request` (unified Tasks + Approvals) |
 | Approvals *(deprecated)* | `list_pending_approvals`, `decide_approval`, `create_approval`, `get_workspace_approvals` — backward-compatible shims that route to the unified requests system (`kind='approval'`); prefer the Requests / Inbox tools |
 | Remote Agents | list (runtime=external), get state, setup command, check freshness |
+
+Native Core channel-management tools were retired with the channels-as-plugins
+cutover. Discover a `kind: channel` package with `list_plugin_registry` or
+`list_available_plugins`, then use `install_plugin` to connect it to a
+workspace. Provider credentials and setup belong to that plugin; this MCP
+server no longer calls Core's removed `/channels` routes.
 
 ## Setup
 
