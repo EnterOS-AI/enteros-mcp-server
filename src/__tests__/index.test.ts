@@ -1184,12 +1184,12 @@ describe("createServer()", () => {
   // and each tool() call is recorded by the mocked McpServer above. If a
   // future PR adds a tool file but forgets to call its registerXxxTools
   // from createServer(), this count drops and the test fails. We assert
-  // the concrete current tool count (93) rather than a lower bound so a
+  // the concrete current tool count (85) rather than a lower bound so a
   // silently-dropped handler is also caught.
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(93);
+    expect(names.length).toBe(85);
     // create_issue (Gitea bug-filing) must be wired into the default surface.
     expect(names).toContain("create_issue");
     // Unified requests/inbox tools (RFC P2) — all 7 wired into the surface.
@@ -1200,6 +1200,18 @@ describe("createServer()", () => {
     expect(names).toContain("respond_request");
     expect(names).toContain("add_request_message");
     expect(names).toContain("cancel_request");
+    for (const retired of [
+      "list_channel_adapters",
+      "list_channels",
+      "add_channel",
+      "update_channel",
+      "remove_channel",
+      "send_channel_message",
+      "test_channel",
+      "discover_channel_chats",
+    ]) {
+      expect(names).not.toContain(retired);
+    }
     // Names must be unique — a duplicate registration would indicate a
     // copy-paste mistake in one of the registerXxxTools() calls.
     expect(new Set(names).size).toBe(names.length);

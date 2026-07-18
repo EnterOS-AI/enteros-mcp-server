@@ -20,7 +20,6 @@ import { registerSecretTools } from "./tools/secrets.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerMemoryTools } from "./tools/memory.js";
 import { registerPluginTools } from "./tools/plugins.js";
-import { registerChannelTools } from "./tools/channels.js";
 import { registerDelegationTools } from "./tools/delegation.js";
 import { registerScheduleTools } from "./tools/schedules.js";
 import { registerApprovalTools } from "./tools/approvals.js";
@@ -127,18 +126,6 @@ export {
   handleListAvailablePlugins,
   handleCheckPluginCompatibility,
 } from "./tools/plugins.js";
-
-export {
-  registerChannelTools,
-  handleListChannelAdapters,
-  handleListChannels,
-  handleAddChannel,
-  handleUpdateChannel,
-  handleRemoveChannel,
-  handleSendChannelMessage,
-  handleTestChannel,
-  handleDiscoverChannelChats,
-} from "./tools/channels.js";
 
 export {
   registerDelegationTools,
@@ -286,7 +273,6 @@ export function createServer() {
   registerFileTools(srv);
   registerMemoryTools(srv);
   registerPluginTools(srv);
-  registerChannelTools(srv);
   registerDelegationTools(srv);
   registerScheduleTools(srv);
   registerApprovalTools(srv);
@@ -361,7 +347,7 @@ async function main() {
       mode: "management",
     });
   } else {
-    logInfo("Molecule AI MCP server running on stdio (93 tools available)", { transport: "stdio", toolCount: 93 });
+    logInfo("Molecule AI MCP server running on stdio (85 tools available)", { transport: "stdio", toolCount: 85 });
   }
 }
 

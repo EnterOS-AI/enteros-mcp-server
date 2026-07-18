@@ -93,5 +93,9 @@ describe("current MCP setup guidance", () => {
     expect(claude).not.toMatch(/\b88 total\b/i);
     expect(readme).toContain("dist/manifest.json");
     expect(claude).toContain("dist/manifest.json");
+    expect(readme).toContain("85 workspace-mode tools");
+    expect(readme).toMatch(/45\s+management-mode\s+tools/);
+    expect(claude).toContain("85 workspace-mode tools");
+    expect(claude).toMatch(/45\s+management-mode\s+tools/);
   });
 });
