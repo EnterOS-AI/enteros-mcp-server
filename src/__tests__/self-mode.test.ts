@@ -293,6 +293,7 @@ describe("(c) self mode registers only the schedule tools", () => {
       "delete_workspace",
       "mint_org_token",
       "mint_workspace_token",
+      "promote_to_production",
       "set_secret",
       "set_workspace_secret",
       "set_org_secret",

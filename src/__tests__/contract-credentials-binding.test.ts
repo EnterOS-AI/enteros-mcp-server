@@ -49,17 +49,22 @@ jest.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
 }));
 
 import { mgmtGet } from "../tools/management/client.js";
+import { handlePromoteToProduction } from "../tools/management/cp_admin.js";
 
 interface CredentialEntry {
   id: string;
   env_key: string;
   aliases: string[];
+  forbidden_on?: string[];
+  holder?: string;
+  http_grants?: Array<{ method: string; path: string }>;
   reader?: string;
 }
 interface CredentialsContract {
   credentials: CredentialEntry[];
   management_mcp_env: {
     required: string[];
+    optional: string[];
     deprecated_do_not_use: string[];
   };
 }
@@ -72,7 +77,9 @@ function loadContract(): CredentialsContract {
 
 const contract = loadContract();
 const orgApiKeyCred = contract.credentials.find((c) => c.id === "org-api-key");
+const promoteCredential = contract.credentials.find((c) => c.id === "cp-promote-prod-token");
 const CANONICAL = orgApiKeyCred?.env_key ?? "";
+const PROMOTE_CANONICAL = promoteCredential?.env_key ?? "";
 const DEPRECATED = contract.management_mcp_env.deprecated_do_not_use;
 const ORG_ID = "org-11111111";
 const HOST = "https://agents-team.moleculesai.app";
@@ -102,6 +109,8 @@ beforeEach(() => {
   // Start from a clean org-credential slate so each test declares exactly which
   // name it sets (a leaked canonical/deprecated env would mask the assertion).
   delete process.env.MOLECULE_ORG_API_KEY;
+  delete process.env.CP_ADMIN_API_TOKEN;
+  if (PROMOTE_CANONICAL) delete process.env[PROMOTE_CANONICAL];
   for (const name of DEPRECATED) delete process.env[name];
 });
 
@@ -155,4 +164,40 @@ describe("management-MCP credentials contract (reader binding)", () => {
       expect(f).not.toHaveBeenCalled();
     },
   );
+
+  test("contract confines the production promote capability to its exact route and holder boundary", () => {
+    expect(promoteCredential).toBeDefined();
+    expect(PROMOTE_CANONICAL).toBe("CP_PROMOTE_PROD_API_TOKEN");
+    expect(promoteCredential?.aliases).toEqual([]);
+    expect(promoteCredential?.http_grants).toContainEqual({
+      method: "POST",
+      path: "/cp/admin/promote",
+    });
+    expect(promoteCredential?.forbidden_on).toEqual(expect.arrayContaining([
+      "ordinary-workspace",
+      "tenant-platform-box",
+      "tenant-concierge",
+      "pull-request-ci",
+      "general-sdk-client",
+    ]));
+    expect(promoteCredential?.holder).toContain("operator-launched privileged management MCP");
+    expect(promoteCredential?.reader).toContain("molecule-mcp-server promote_to_production");
+    expect(contract.management_mcp_env.required).not.toContain(PROMOTE_CANONICAL);
+    expect(contract.management_mcp_env.optional).toContain(PROMOTE_CANONICAL);
+  });
+
+  test("the promote reader authenticates from the contract's canonical capability name", async () => {
+    const secret = "promote_testkey_canonical";
+    process.env.MOLECULE_CP_URL = "https://api.moleculesai.app";
+    process.env[PROMOTE_CANONICAL] = secret;
+    const f = mockFetch();
+    global.fetch = f as unknown as typeof fetch;
+
+    await handlePromoteToProduction({ dry_run: true });
+
+    expect(f).toHaveBeenCalledTimes(1);
+    const [url, init] = f.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.moleculesai.app/cp/admin/promote");
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${secret}`);
+  });
 });

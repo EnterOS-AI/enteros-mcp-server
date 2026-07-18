@@ -4,8 +4,9 @@
  *
  * Auth: Org API Key (full tenant-admin) against the PER-ORG tenant host. See
  * ./client.ts for the auth model and the security caveat (org key = tenant
- * root, self-minting). The few CP-tier tools (list_orgs / get_org) live in
- * ./cp_admin.ts because the Org API Key CANNOT reach the control plane.
+ * root, self-minting). The CP-tier tools (list_orgs / get_org /
+ * promote_to_production / provider migration) live in ./cp_admin.ts because
+ * the Org API Key CANNOT reach the control plane.
  *
  * Every endpoint + request body below is derived from the canonical tenant
  * router/handler source (molecule-core/workspace-server/internal/router/

@@ -6,7 +6,7 @@ MCP server that exposes Molecule AI platform operations as tools for AI coding a
 
 The authoritative tool list is generated from each real `createServer()` mode by
 `npm run build:manifest` and written to `dist/manifest.json`. On this exact
-source, generation reports **85 workspace-mode tools** and **45 management-mode
+source, generation reports **85 workspace-mode tools** and **46 management-mode
 tools**; tests ratchet those counts to the registrations. The highlights below
 are intentionally not a hand-maintained full list.
 
@@ -139,7 +139,8 @@ because several tool names overlap).
 | Plugin governance | `get_org_plugin_allowlist`, `set_org_plugin_allowlist` |
 | Bundles | `export_bundle`, `import_bundle` |
 | Audit | `list_org_events`, `list_pending_approvals` *(deprecated shim → `/requests/pending?kind=approval`)* |
-| **CP-tier (gated)** | `list_orgs`, `get_org` |
+| Compute migration | `migrate_workspace_provider`, `get_workspace_migration_status` |
+| **CP-tier (gated)** | `list_orgs`, `get_org`, `promote_to_production` |
 
 Each tool's input schema, endpoint, and request body are derived from the
 canonical tenant router/handler source
@@ -171,7 +172,7 @@ selected by the routed host.
 > per-workspace scoping is a planned follow-up. Treat `MOLECULE_ORG_API_KEY`
 > as a root credential — store it in a secrets manager, never in source.
 
-### CP-tier caveat (`list_orgs` / `get_org`)
+### CP-tier caveat and production promote capability
 
 The Org API Key is a **tenant** credential and **cannot reach the control
 plane** — CP `/api/v1/orgs/*` (org create/delete/export/members/billing)
@@ -182,6 +183,21 @@ a silent failure) and make no network call. Member/billing management tools
 need the same CP session tier and are intentionally out of scope for the
 org-key MCP.
 
+`promote_to_production` is a synchronous, tenant-fleet-only wrapper over
+`POST /cp/admin/promote`. Its exact request fields are `env`, `components`,
+`dry_run`, and `confirm`; the vendored
+`contracts/promote-request.contract.json` is byte-gated in required CI against
+the canonical SDK contract. `dry_run` defaults to `true` and is accepted only
+with exact non-mutating immutable-fleet evidence. Every wet rollout requires
+`confirm:true` as explicit operator GO and is accepted only on HTTP 200 with
+`ok:true`, `complete:true`, and exact full-fleet coverage.
+
+Production calls use only `CP_PROMOTE_PROD_API_TOKEN`. The generic CP admin
+bearer is never a production promote substitute, and the production capability
+is never sent to staging. Runtime wheels, template images, canvas, the app,
+control plane, and tenant proxy remain owned by their repository CI-on-merge
+workflows; this tool neither deploys nor reports completion for them.
+
 ### Management env vars
 
 | Variable | Required | Description |
@@ -191,8 +207,10 @@ org-key MCP.
 | `MOLECULE_ORG_API_KEY` | Yes | Org API Key (full-tenant-admin; see security note) |
 | `MOLECULE_ORG_ID` | Yes | Org id for the `X-Molecule-Org-Id` tenant-guard header |
 | `MOLECULE_ORG_SLUG` | No | Optional `X-Molecule-Org-Slug` header |
-| `CP_ADMIN_API_TOKEN` | No | CP admin bearer — required only for the CP-tier `list_orgs` / `get_org` tools |
+| `CP_ADMIN_API_TOKEN` | No | Generic CP admin bearer for CP reads, provider migration, and staging promote; never used for production promote |
+| `CP_PROMOTE_PROD_API_TOKEN` | No | Dedicated production `POST /cp/admin/promote` capability; required for production plans and wet rollouts |
 | `MOLECULE_CP_URL` | No | Control-plane base URL (default `https://api.moleculesai.app`) |
+| `MOLECULE_CP_STAGING_URL` | No | Staging control-plane base when `env=staging` and `MOLECULE_CP_URL` is unset (default `https://staging-api.moleculesai.app`) |
 
 ### Management host config
 

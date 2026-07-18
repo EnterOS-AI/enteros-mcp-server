@@ -38,14 +38,14 @@ CANON_URL="${API_ROOT}/repos/${SSOT_REPO}/raw/${SSOT_CONTRACT_REL}?ref=${REF}"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
-# molecule-ai-sdk is public -> token optional; send it only if provided.
-AUTH_ARGS=()
-if [ -n "${CONTRACT_SYNC_TOKEN:-}" ]; then
-  AUTH_ARGS=(-H "Authorization: token ${CONTRACT_SYNC_TOKEN}")
-fi
-
 set +e
-curl -fsS "${AUTH_ARGS[@]}" "${CANON_URL}" -o "$TMP"
+if [ -n "${CONTRACT_SYNC_TOKEN:-}" ]; then
+  curl -fsS -A "curl/8.4.0" \
+    -H @<(printf 'Authorization: token %s\n' "$CONTRACT_SYNC_TOKEN") \
+    "$CANON_URL" -o "$TMP"
+else
+  curl -fsS -A "curl/8.4.0" "$CANON_URL" -o "$TMP"
+fi
 curl_status=$?
 set -e
 if [ "$curl_status" -ne 0 ]; then

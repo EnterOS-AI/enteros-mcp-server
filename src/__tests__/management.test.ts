@@ -812,7 +812,7 @@ describe("registration + mode", () => {
     registerManagementTools(srv as never);
     const names = srv.registeredToolNames;
     for (const expected of [
-      "list_orgs", "get_org",
+      "list_orgs", "get_org", "promote_to_production",
       "migrate_workspace_provider", "get_workspace_migration_status",
       "list_workspaces", "get_workspace", "provision_workspace", "deprovision_workspace",
       "restart_workspace", "pause_workspace", "resume_workspace",

@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "CANONICAL CROSS-REPOSITORY SSOT for POST /cp/admin/promote.",
+    "The editable source is molecule-ai-sdk/contracts/promote-request/promote-request.contract.json;",
+    "the control-plane, admin CLI, and MCP copies are exact mirrors of this SDK source.",
+    "Version 2 retires the fake runtime/template/canvas delegation catalog. Those artifacts are",
+    "owned by repository CI-on-merge. This endpoint owns only synchronous, immutable tenant-fleet rollout."
+  ],
+  "version": 2,
+  "endpoint": "POST /cp/admin/promote",
+  "catalog": ["tenant-fleet"],
+  "completion": {
+    "dry_run_complete": false,
+    "wet_success_status": 200,
+    "wet_success_requires": [
+      "results[tenant-fleet].status=ok",
+      "complete=true",
+      "exact immutable full-fleet coverage"
+    ],
+    "repository_owned_elsewhere": [
+      "runtime-wheel",
+      "template-images",
+      "canvas",
+      "control-plane",
+      "app",
+      "tenant-proxy"
+    ]
+  },
+  "fields": {
+    "env":        {"type": "string",   "note": "optional environment assertion: production or staging"},
+    "components": {"type": "[]string", "note": "empty, [all], or [tenant-fleet]; every other selector is rejected"},
+    "dry_run":    {"type": "bool",     "note": "true validates and plans with zero mutation; response complete is false"},
+    "confirm":    {"type": "bool",     "note": "required for every wet full-fleet rollout"}
+  }
+}

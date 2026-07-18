@@ -17,13 +17,19 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build
 
       - name: Test
         run: npm test
+
+      - name: Real MCP transport integration tests
+        run: npm run test:integration
+
+      - name: Promote request SDK SSOT sync
+        run: bash .gitea/scripts/check-promote-request-vendor-sync.sh
 
   # Publish-provenance gate (ADVISORY — continue-on-error, does NOT block merge).
   #

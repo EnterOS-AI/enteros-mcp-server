@@ -230,7 +230,15 @@ export {
   handleCancelRequest,
 } from "./tools/requests.js";
 export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
-export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured } from "./tools/management/cp_admin.js";
+export {
+  registerCpAdminTools,
+  handleListOrgs,
+  handleGetOrg,
+  handlePromoteToProduction,
+  PROMOTE_REQUEST_FIELDS,
+  cpUrl,
+  cpConfigured,
+} from "./tools/management/cp_admin.js";
 
 /**
  * Returns true when the server should run as the MANAGEMENT server (the
@@ -267,8 +275,10 @@ export function createServer() {
 
   if (isManagementMode()) {
     // Management registry — Org API Key, tenant host. CP-tier tools
-    // (list_orgs/get_org) are registered by registerManagementTools via the
-    // separate cp_admin module and gated on CP_ADMIN_API_TOKEN.
+    // (list_orgs/get_org/promote_to_production) are registered by
+    // registerManagementTools via the separate cp_admin module. Generic reads
+    // use CP_ADMIN_API_TOKEN; production promote uses only its dedicated
+    // CP_PROMOTE_PROD_API_TOKEN capability.
     registerManagementTools(srv);
     // Issue filing is useful from BOTH surfaces (an operator on the management
     // host and an agent on the workspace surface both observe bugs worth
