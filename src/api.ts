@@ -119,7 +119,18 @@ export function authHeaders(): Record<string, string> {
     return headers;
   }
 
-  const key = process.env.MOLECULE_API_KEY || process.env.MOLECULE_API_TOKEN;
+  // MOLECULE_ORG_API_KEY is the management/concierge org-admin bearer (audience=org
+  // injector credential_env; the management tools read it strictly in
+  // tools/management/client.ts). Adding it here lets the api.ts-based tools —
+  // notably the cross-workspace SCHEDULE tools now registered in management mode —
+  // authenticate on the management surface, where MOLECULE_API_KEY/_TOKEN are not
+  // set. It is a FALLBACK (the existing vars win) and is safe: self mode early-
+  // returns above and never reaches this line, and MOLECULE_ORG_API_KEY is only
+  // ever injected into the management MCP process, never an ordinary workspace.
+  const key =
+    process.env.MOLECULE_API_KEY ||
+    process.env.MOLECULE_API_TOKEN ||
+    process.env.MOLECULE_ORG_API_KEY;
   if (key && key.length > 0) {
     headers.Authorization = `Bearer ${key}`;
   }

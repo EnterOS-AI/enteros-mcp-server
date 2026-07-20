@@ -69,6 +69,14 @@ import {
   handleMigrateWorkspaceProvider,
   handleGetWorkspaceMigrationStatus,
 } from "../tools/management/cp_admin.js";
+import {
+  handleListSchedules,
+  handleCreateSchedule,
+} from "../tools/schedules.js";
+// PLATFORM_URL is a module-load constant (api.ts) — the schedule handlers' base;
+// import it so the URL assertion matches the frozen value (same env precedence as
+// managementUrl(): MOLECULE_API_URL||MOLECULE_URL||PLATFORM_URL||localhost:8080).
+import { PLATFORM_URL } from "../api.js";
 
 const ORG_KEY = "org_testkey_abcdef";
 const ORG_ID = "org-11111111";
@@ -834,24 +842,76 @@ describe("registration + mode", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("createServer in management mode registers only the management surface", () => {
+  it("createServer in management mode registers the management surface + cross-workspace schedule tools", () => {
     process.env.MOLECULE_MCP_MODE = "management";
     // The mock McpServer throws on duplicate names (like the real SDK), so
     // simply composing the full management-mode server here is the
     // regression gate against cross-registry tool-name collisions.
-    const srv = createServer() as unknown as { registeredToolNames: string[] };
+    const srv = createServer() as unknown as { registeredToolNames: string[]; name?: string };
     expect(srv.registeredToolNames).toContain("provision_workspace");
     // The unified request tools come from requests.ts (BOTH modes) — the
     // management registry must NOT duplicate them.
     expect(srv.registeredToolNames).toContain("create_request");
     expect(srv.registeredToolNames).toContain("create_approval");
+    // Cross-workspace schedule management: the concierge/platform-agent (ORG key)
+    // manages schedules for ANY workspace in the org. All 6 verbs must be offered
+    // here (they require an explicit target workspace_id in non-self mode — see
+    // resolveWorkspaceId + the "requires an explicit workspace_id" test below).
+    for (const verb of [
+      "create_schedule", "update_schedule", "delete_schedule",
+      "list_schedules", "run_schedule", "get_schedule_history",
+    ]) {
+      expect(srv.registeredToolNames).toContain(verb);
+    }
     // Legacy-only tools (chat_with_agent) must NOT be present in mgmt mode.
     expect(srv.registeredToolNames).not.toContain("chat_with_agent");
+    // No duplicate registrations across the composed registries.
+    expect(new Set(srv.registeredToolNames).size).toBe(srv.registeredToolNames.length);
   });
 
   it("createServer in workspace mode composes without tool-name collisions", () => {
     process.env.MOLECULE_MCP_MODE = "";
     expect(() => createServer()).not.toThrow();
+  });
+});
+
+// Cross-workspace schedule management via the ORG key (concierge/platform-agent).
+// SECURITY CRUX: in management (non-self) mode the schedule tools must REQUIRE an
+// explicit target workspace_id — a silent self-default would let an operator
+// accidentally retarget a wrong workspace. With an explicit id, the request must
+// carry the ORG key so core's WorkspaceAuth admits it for any workspace in the org.
+describe("management-mode schedule tools (cross-workspace, org key)", () => {
+  beforeEach(() => {
+    process.env.MOLECULE_MCP_MODE = "management";
+    // Ensure NO ambient self id can leak a default target.
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    delete process.env.WORKSPACE_ID;
+  });
+
+  it("REQUIRES workspace_id — an omitted id is INVALID_ARGUMENTS with no fetch (never a silent self-default)", async () => {
+    const f = mockFetch({ schedules: [] });
+    global.fetch = f as unknown as typeof fetch;
+    const res = await handleListSchedules({});
+    expect(parsed(res).error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("with an explicit target workspace_id, targets /workspaces/<target>/schedules under the ORG-key Bearer", async () => {
+    const f = mockFetch({ id: "sch-1" });
+    global.fetch = f as unknown as typeof fetch;
+    await handleCreateSchedule({
+      workspace_id: "w-other",
+      name: "daily",
+      cron: "0 9 * * *",
+      prompt: "summarize",
+    } as never);
+    const { url, init } = lastCall(f);
+    // Cross-workspace target in the path; base is the schedule handlers' PLATFORM_URL
+    // (== the tenant host in prod, where MOLECULE_API_URL is set before module load).
+    expect(url).toBe(`${PLATFORM_URL}/workspaces/w-other/schedules`);
+    // Authed by the ORG key (non-self authHeaders), which core's WorkspaceAuth
+    // admits for every workspace in the org.
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
   });
 });
 
