@@ -287,6 +287,20 @@ export function createServer() {
     // Unified requests/inbox tools (RFC P2) — registered in BOTH modes, same
     // as create_issue: an agent on either surface can raise/answer requests.
     registerRequestTools(srv);
+    // Cross-workspace schedule management (org/tenant key). The management
+    // surface is the concierge/platform-agent acting on the org with the ORG
+    // API key, so it can manage schedules for ANY workspace in the org — the
+    // "org key manages scheduler for other workspaces" capability. This is SAFE
+    // to register here BECAUSE the schedule tools are already mode-aware: in
+    // NON-self mode workspace_id is REQUIRED (resolveWorkspaceId in
+    // tools/schedules.ts hard-fails an omitted id — never a silent self-default,
+    // so an operator can't accidentally retarget their own workspace), the tool
+    // SCHEMA advertises "Target workspace UUID (required)…the org/operator key
+    // can target", and authHeaders() sends the ORG key (api.ts), which core's
+    // WorkspaceAuth org-token branch admits for every workspace in the org.
+    // Distinct from self mode (below), where workspace_id self-defaults to the
+    // caller's own id under its per-workspace token.
+    registerScheduleTools(srv);
     return srv;
   }
 
