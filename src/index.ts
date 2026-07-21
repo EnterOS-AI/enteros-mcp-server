@@ -23,6 +23,7 @@ import { registerMemoryTools } from "./tools/memory.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerDelegationTools } from "./tools/delegation.js";
 import { registerScheduleTools } from "./tools/schedules.js";
+import { registerPluginUpdateTools } from "./tools/plugin_updates.js";
 import { registerApprovalTools } from "./tools/approvals.js";
 import { registerDiscoveryTools } from "./tools/discovery.js";
 import { registerRemoteAgentTools } from "./tools/remote_agents.js";
@@ -149,6 +150,15 @@ export {
   handleRunSchedule,
   handleGetScheduleHistory,
 } from "./tools/schedules.js";
+
+// Plugin auto-update MANAGEMENT verbs — registered only in the management branch
+// of createServer() (org API key; core AdminAuth Tier-2a). Back the concierge's
+// plugin-auto-update schedule.
+export {
+  registerPluginUpdateTools,
+  handleCheckPluginUpdates,
+  handleApplyPluginUpdate,
+} from "./tools/plugin_updates.js";
 
 export {
   registerApprovalTools,
@@ -298,6 +308,12 @@ export function createServer() {
     // Distinct from self mode (below), where workspace_id self-defaults to the
     // caller's own id under its per-workspace token.
     registerScheduleTools(srv);
+    // Plugin auto-update verbs (check_plugin_updates / apply_plugin_update). The
+    // concierge's plugin-auto-update schedule lists drifted plugins and applies
+    // each pending update. MANAGEMENT-only: the core routes are AdminAuth-gated
+    // and api.ts::authHeaders() emits the org API key exclusively in management
+    // mode (#114), which core AdminAuth admits at Tier-2a (org-scoped token).
+    registerPluginUpdateTools(srv);
     return srv;
   }
 

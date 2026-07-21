@@ -73,6 +73,10 @@ import {
   handleListSchedules,
   handleCreateSchedule,
 } from "../tools/schedules.js";
+import {
+  handleCheckPluginUpdates,
+  handleApplyPluginUpdate,
+} from "../tools/plugin_updates.js";
 // PLATFORM_URL is a module-load constant (api.ts) — the schedule handlers' base;
 // import it so the URL assertion matches the frozen value (same env precedence as
 // managementUrl(): MOLECULE_API_URL||MOLECULE_URL||PLATFORM_URL||localhost:8080).
@@ -912,6 +916,70 @@ describe("management-mode schedule tools (cross-workspace, org key)", () => {
     // Authed by the ORG key (non-self authHeaders), which core's WorkspaceAuth
     // admits for every workspace in the org.
     expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+  });
+});
+
+// Plugin auto-update MANAGEMENT verbs (concierge plugin-auto-update schedule).
+// Both hit the AdminAuth-gated core routes under the ORG-key Bearer (api.ts
+// authHeaders in management mode). check is read-only (GET); apply is a
+// side-effecting POST keyed by the pending-update queue id.
+describe("plugin auto-update tools (management, org key)", () => {
+  beforeEach(() => {
+    process.env.MOLECULE_MCP_MODE = "management";
+  });
+
+  it("check_plugin_updates GETs /admin/plugin-updates-pending under the ORG-key Bearer (read-only)", async () => {
+    const rows = [
+      {
+        id: "q-1",
+        workspace_id: "w-1",
+        plugin_name: "concierge",
+        tracked_ref: "tag:v1.2.0",
+        current_sha: "aaaa",
+        latest_sha: "bbbb",
+        status: "pending",
+      },
+    ];
+    const f = mockFetch(rows);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleCheckPluginUpdates());
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${PLATFORM_URL}/admin/plugin-updates-pending`);
+    expect(init.method).toBe("GET");
+    const h = headersOf(init);
+    expect(h.Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(h["X-Molecule-Org-Id"]).toBe(ORG_ID);
+    expect(res[0].id).toBe("q-1");
+  });
+
+  it("apply_plugin_update POSTs /admin/plugin-updates/:id/apply under the ORG-key Bearer", async () => {
+    const f = mockFetch({ status: "applied", workspace_id: "w-1", restarting: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleApplyPluginUpdate({ id: "q-1" });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${PLATFORM_URL}/admin/plugin-updates/q-1/apply`);
+    expect(init.method).toBe("POST");
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+  });
+
+  it("apply_plugin_update fails closed (INVALID_ARGUMENTS, no fetch) on an empty id", async () => {
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleApplyPluginUpdate({ id: "" }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  // NEGATIVE CONTROL: pin the URL + method so a wrong route/verb regresses. The
+  // check verb is read-only — it must never POST, and must not hit the apply path.
+  it("NEGATIVE CONTROL: check_plugin_updates does not POST and does not hit the apply route", async () => {
+    const f = mockFetch([]);
+    global.fetch = f as unknown as typeof fetch;
+    await handleCheckPluginUpdates();
+    const { url, init } = lastCall(f);
+    expect(init.method).not.toBe("POST");
+    expect(url).not.toContain("/apply");
+    expect(url).toBe(`${PLATFORM_URL}/admin/plugin-updates-pending`);
   });
 });
 
