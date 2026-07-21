@@ -13,7 +13,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { PLATFORM_URL, apiCall, platformGet, isApiError, authHeaders } from "./api.js";
-import { isSelfMode } from "./mode.js";
+import { isSelfMode, isManagementMode } from "./mode.js";
 import { info as logInfo, warn as logWarn, error as logError } from "./utils/logger.js";
 import { registerWorkspaceTools } from "./tools/workspaces.js";
 import { registerAgentTools } from "./tools/agents.js";
@@ -250,18 +250,15 @@ export {
  * resume_workspace) and the MCP SDK throws on duplicate tool names. The
  * management registry is the SAME codebase + conventions, not a fork — it's
  * a distinct mode of this one server (SSOT).
+ *
+ * isManagementMode() and isSelfMode() — the MOLECULE_MCP_MODE predicates — now
+ * live in the leaf module ./mode.ts (the SSOT for the mode selector) so BOTH
+ * this entry point and the low-level api.ts helper can read them without an
+ * index.ts ⇄ api.ts import cycle. Imported above for internal use in
+ * createServer()/main(); re-exported here so existing importers (tests, SDK
+ * consumers) keep resolving them from "./index.js".
  */
-export function isManagementMode(): boolean {
-  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
-}
-
-// isSelfMode() — "the workspace acting on ITSELF with its OWN per-workspace
-// token" — now lives in the leaf module ./mode.ts (the SSOT for the
-// MOLECULE_MCP_MODE selector) so BOTH this entry point and the low-level
-// api.ts helper can read it without an index.ts ⇄ api.ts import cycle. Imported
-// above for internal use in createServer()/main(); re-exported here so existing
-// importers (tests, SDK consumers) keep resolving it from "./index.js".
-export { isSelfMode } from "./mode.js";
+export { isSelfMode, isManagementMode } from "./mode.js";
 
 export function createServer() {
   const srv = new McpServer({

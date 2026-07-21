@@ -260,6 +260,75 @@ describe("fail-closed auth path", () => {
 });
 
 // ===========================================================================
+// #1 SECURITY — the MOLECULE_ORG_API_KEY (org-admin) fallback in authHeaders()
+// may be emitted ONLY in management mode. In the DEFAULT a2a/workspace-ops mode
+// it must NEVER be sent, even when present in env — the mode gate is the
+// enforcement, not a trust that the injector never leaks the env. These pin the
+// gate from both sides:
+//
+//   • management mode + org key (no MOLECULE_API_KEY/_TOKEN) → org-key bearer.
+//   • DEFAULT mode  + org key (no MOLECULE_API_KEY/_TOKEN) → NO Authorization.
+//     Negative control: against the pre-fix code (org key third in the OR with
+//     no mode gate) this emitted `Bearer <org key>` and FAILS this assertion.
+//   • self mode still early-returns to the token-file bearer (org key ignored).
+// ===========================================================================
+describe("#1 org-key fallback is gated to management mode", () => {
+  const ORG_API_KEY = "org_api_key_MANAGEMENT_ONLY";
+
+  beforeEach(() => {
+    // Strip the workspace-token + primary key vars so ONLY MOLECULE_ORG_API_KEY
+    // could satisfy the bearer — isolating the gate under test.
+    delete process.env.MOLECULE_MCP_MODE;
+    delete process.env.MOLECULE_API_KEY;
+    delete process.env.MOLECULE_API_TOKEN;
+    delete process.env.MOLECULE_WORKSPACE_TOKEN_FILE;
+    process.env.MOLECULE_ORG_API_KEY = ORG_API_KEY;
+  });
+
+  it("management mode + MOLECULE_ORG_API_KEY → Authorization: Bearer <org key> (+ org routing id)", () => {
+    process.env.MOLECULE_MCP_MODE = "management";
+    const h = authHeaders();
+    expect(h.Authorization).toBe(`Bearer ${ORG_API_KEY}`);
+    expect(h["X-Molecule-Org-Id"]).toBe(ORG_ID);
+  });
+
+  it("DEFAULT mode (MOLECULE_MCP_MODE unset) + MOLECULE_ORG_API_KEY → NO Authorization (org key never leaks)", () => {
+    // MOLECULE_MCP_MODE deleted above → default a2a/workspace-ops mode.
+    expect(isSelfMode()).toBe(false);
+    const h = authHeaders();
+    expect(h.Authorization).toBeUndefined();
+    // The org-admin key must not appear anywhere in the emitted headers.
+    expect(JSON.stringify(h)).not.toContain(ORG_API_KEY);
+    // The tenant ROUTING id is unrelated to the key gate and still attaches.
+    expect(h["X-Molecule-Org-Id"]).toBe(ORG_ID);
+  });
+
+  it("DEFAULT mode + MOLECULE_ORG_API_KEY='a2a' alias → still NO org bearer", () => {
+    process.env.MOLECULE_MCP_MODE = "a2a";
+    const h = authHeaders();
+    expect(h.Authorization).toBeUndefined();
+    expect(JSON.stringify(h)).not.toContain(ORG_API_KEY);
+  });
+
+  it("management mode still prefers MOLECULE_API_KEY over the org key when both are set", () => {
+    process.env.MOLECULE_MCP_MODE = "management";
+    process.env.MOLECULE_API_KEY = "primary_workspace_key";
+    const h = authHeaders();
+    expect(h.Authorization).toBe("Bearer primary_workspace_key");
+  });
+
+  it("self mode ignores MOLECULE_ORG_API_KEY and early-returns the token-file bearer", () => {
+    process.env.MOLECULE_MCP_MODE = "self";
+    const tf = join(tmpDir, `auth_token_orggate_${Math.random().toString(36).slice(2)}`);
+    writeFileSync(tf, `${WS_TOKEN}\n`);
+    process.env.MOLECULE_WORKSPACE_TOKEN_FILE = tf;
+    const h = authHeaders();
+    expect(h.Authorization).toBe(`Bearer ${WS_TOKEN}`);
+    expect(JSON.stringify(h)).not.toContain(ORG_API_KEY);
+  });
+});
+
+// ===========================================================================
 // (c) self mode registers EXACTLY the 6 schedule tools — ZERO management tools
 // ===========================================================================
 describe("(c) self mode registers only the schedule tools", () => {

@@ -25,3 +25,18 @@
 export function isSelfMode(): boolean {
   return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "self";
 }
+
+/**
+ * True when the server runs as the MANAGEMENT server (the cross-org /
+ * org-lifecycle surface) rather than the legacy single-tenant workspace-ops
+ * surface. Driven by MOLECULE_MCP_MODE=management (case-insensitive).
+ *
+ * Security-sensitive — this predicate gates the MOLECULE_ORG_API_KEY
+ * (org-admin) fallback bearer in api.ts::authHeaders(): that org key may be
+ * emitted ONLY in management mode, never in the default a2a/workspace-ops mode.
+ * Lives here (the leaf module) so api.ts can read it without an index.ts ⇄
+ * api.ts import cycle; index.ts re-exports it for existing importers.
+ */
+export function isManagementMode(): boolean {
+  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
+}
