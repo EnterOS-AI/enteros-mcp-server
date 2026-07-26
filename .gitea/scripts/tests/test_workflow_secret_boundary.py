@@ -67,10 +67,23 @@ require(
     "npm userconfig stores a literal NODE_AUTH_TOKEN placeholder",
 )
 require(
-    "$GITHUB_ENV" not in PUBLISH
+    not re.search(r"MOL_PACKAGE_TOKEN=.*GITHUB_ENV", PUBLISH)
     and "export MOL_PACKAGE_TOKEN" not in PUBLISH
     and 'NODE_AUTH_TOKEN="$MOL_PACKAGE_TOKEN"' in PUBLISH,
     "package credential is exported only to the final npm process",
+)
+
+guard = PUBLISH.find("npm run prepublishOnly")
+clean_rebuild = PUBLISH.find("bash .gitea/scripts/rebuild-package-dist.sh")
+pack = PUBLISH.find("npm pack --ignore-scripts")
+credential_fetch = PUBLISH.find("TOK=$(")
+publish = PUBLISH.find('npm publish "$PACKAGE_TARBALL" --ignore-scripts')
+require(
+    -1 not in (guard, clean_rebuild, pack, credential_fetch, publish)
+    and guard < clean_rebuild < pack < credential_fetch < publish
+    and len(re.findall(r"(?m)^\s+npm publish ", PUBLISH)) == 1,
+    "exact tarball is guarded, rebuilt, and packed before credentials, then "
+    "published once with lifecycle scripts disabled",
 )
 
 print("\nALL WORKFLOW SECRET-BOUNDARY CHECKS PASSED")

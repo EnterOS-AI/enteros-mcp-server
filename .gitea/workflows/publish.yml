@@ -15,17 +15,63 @@ jobs:
       # producer-emitted dist/manifest.json (per-mode, versioned tool manifest,
       # RFC #3285 P1) is generated BEFORE `npm publish` and ships in the npm
       # tarball (no `files` allowlist / `.npmignore`; exports point into dist/).
-      # npm publish invokes prepack after the tag guard; prepack removes the
-      # whole ignored dist/ tree and regenerates it, so stale or injected
-      # ignored output cannot survive into an ordinary directory publish.
+      # The package prepack hook remains the fallback for ordinary directory
+      # publishes. The official workflow repeats that clean rebuild explicitly
+      # before it seals a script-disabled tarball without registry credentials.
       - run: npm run build:manifest
       - run: npm test
 
       # Verify the canonical release tag before loading the write-capable
-      # package credential. npm publish runs the same prepublishOnly guard
-      # again immediately before packing.
+      # package credential.
       - name: Verify release tag matches exact HEAD
         run: npm run prepublishOnly
+
+      # Package while the job is still credential-free. Lifecycle scripts are
+      # disabled because the exact guard and clean dist rebuild are invoked
+      # explicitly above/below; the final credentialed npm command publishes
+      # only this already-sealed tarball.
+      - name: Build and seal release tarball without registry credentials
+        run: |
+          set -euo pipefail
+          bash .gitea/scripts/rebuild-package-dist.sh
+          package_dir=$(mktemp -d "${RUNNER_TEMP:-/tmp}/mcp-package.XXXXXX")
+          pack_json="$package_dir/pack.json"
+          npm pack --ignore-scripts --json --pack-destination "$package_dir" > "$pack_json"
+          PACKAGE_TARBALL=$(python3 - "$pack_json" "$package_dir" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report_path = Path(sys.argv[1])
+          package_dir = Path(sys.argv[2]).resolve()
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          if not isinstance(report, list) or len(report) != 1:
+              raise SystemExit("npm pack did not report exactly one artifact")
+          filename = (
+              report[0].get("filename") if isinstance(report[0], dict) else None
+          )
+          if (
+              not isinstance(filename, str)
+              or not filename.endswith(".tgz")
+              or Path(filename).name != filename
+              or any(
+                  ord(character) <= 0x20 or ord(character) == 0x7F
+                  for character in filename
+              )
+          ):
+              raise SystemExit("npm pack reported an unsafe artifact filename")
+          candidate = package_dir / filename
+          if candidate.is_symlink() or not candidate.is_file():
+              raise SystemExit("npm pack artifact is missing or linked")
+          artifact = candidate.resolve()
+          if artifact.parent != package_dir:
+              raise SystemExit(
+                  "npm pack artifact is missing, linked, or outside the package directory"
+              )
+          print(artifact)
+          PY
+          )
+          printf 'PACKAGE_TARBALL=%s\n' "$PACKAGE_TARBALL" >> "$GITHUB_ENV"
 
       # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven
       # #971/#3274 pattern: source MOL_PACKAGE_TOKEN from the Infisical SSOT via
@@ -42,6 +88,9 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://key.moleculesai.app"
+          : "${PACKAGE_TARBALL:?missing prebuilt package tarball path}"
+          [ -f "$PACKAGE_TARBALL" ] && [ ! -L "$PACKAGE_TARBALL" ] \
+            || { echo "prebuilt package tarball is missing or linked" >&2; exit 1; }
           : "${INFISICAL_CI_CLIENT_ID:?missing Infisical CI client ID}"
           : "${INFISICAL_CI_CLIENT_SECRET:?missing Infisical CI client secret}"
           : "${INFISICAL_PROJECT_ID:?missing Infisical project ID}"
@@ -101,5 +150,6 @@ jobs:
             > "$NPM_CONFIG_USERCONFIG"
 
           NODE_AUTH_TOKEN="$MOL_PACKAGE_TOKEN" \
-            npm publish --registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
+            npm publish "$PACKAGE_TARBALL" --ignore-scripts \
+              --registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
           unset MOL_PACKAGE_TOKEN
