@@ -90,6 +90,22 @@ The workflow (`.gitea/workflows/publish.yml`):
 
 **Do not publish manually.** Let the tag push flow handle it.
 
+`package.json` wires a `prepublishOnly` defense-in-depth guard for ordinary
+directory publishes. It requires the canonical `origin` tag matching the
+package version (`vX.Y.Z`) to already exist and peel to the exact commit at
+`HEAD`, and rejects staged, unstaged tracked, or nonignored untracked content
+that the tag does not represent. Ignored build output such as generated
+`dist/` remains allowed. The guard never creates, fetches, or moves a tag.
+The tag workflow invokes the guard before loading its write-capable package
+credential, and `npm publish` invokes it again through the lifecycle hook.
+
+This lifecycle hook is not registry-level enforcement. It is skipped by
+`npm publish --ignore-scripts` and by publishing a prebuilt tarball, and direct
+registry requests or control of the configured `origin` can bypass it. Keep the
+write-capable package credential least-privilege and CI-only, and keep release
+tags protected against mutation; those controls are the actual security
+boundary.
+
 ## Platform Integration
 
 ### APIs Connected

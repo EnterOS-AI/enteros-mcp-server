@@ -19,6 +19,7 @@
     "manifest": "node dist/manifest-emit.js",
     "build:manifest": "tsc && node dist/manifest-emit.js",
     "start": "node dist/index.js",
+    "prepublishOnly": "bash .gitea/scripts/publish-tag-guard.sh",
     "test": "jest",
     "test:integration": "jest --config jest.integration.cjs"
   },

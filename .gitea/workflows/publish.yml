@@ -10,13 +10,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm install
+      - run: npm ci
       # build:manifest = `tsc && node dist/manifest-emit.js`, so the
       # producer-emitted dist/manifest.json (per-mode, versioned tool manifest,
       # RFC #3285 P1) is generated BEFORE `npm publish` and ships in the npm
       # tarball (no `files` allowlist / `.npmignore`; exports point into dist/).
       - run: npm run build:manifest
       - run: npm test
+
+      # Verify the canonical release tag before loading the write-capable
+      # package credential. npm publish runs the same prepublishOnly guard
+      # again immediately before packing.
+      - name: Verify release tag matches exact HEAD
+        run: npm run prepublishOnly
 
       # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven
       # #971/#3274 pattern: source MOL_PACKAGE_TOKEN from the Infisical SSOT via

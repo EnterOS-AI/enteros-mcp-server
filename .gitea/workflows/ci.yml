@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Publish tag guard self-test
+        run: bash .gitea/scripts/tests/test_publish_tag_guard.sh
+
       - name: Build
         run: npm run build
 
