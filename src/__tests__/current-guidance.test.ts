@@ -116,4 +116,18 @@ describe("current MCP setup guidance", () => {
       /publishes\s+that sealed tarball with lifecycle scripts disabled/i,
     );
   });
+
+  it("does not claim registry bytes prove the reviewed Git source tree", () => {
+    const claude = read("CLAUDE.md");
+
+    expect(claude).toContain(
+      "the published payload alone does not prove the Git source tree",
+    );
+    expect(claude).toMatch(
+      /attestation binds the registry tarball URL,\s+byte size, and SHA-256 to\s+separately reviewed Git identity evidence/i,
+    );
+    expect(claude).not.toContain(
+      "the published payload proves the attested source tree",
+    );
+  });
 });

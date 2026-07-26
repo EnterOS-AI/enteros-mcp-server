@@ -119,10 +119,13 @@ Every published version must have a matching tag. A reviewed retroactive
 recovery listed in `contracts/published-package-provenance.json` must also match
 the exact tag target, canonical source tree, registry tarball URL, byte size,
 and SHA-256. The current `1.9.6` entry records reconstructed recovery evidence:
-the published payload proves the attested source tree, while the canonical
-merge commit is the reviewed recovery target because registry metadata contains
-no embedded `gitHead`. Do not generalize that reconstructed edge into a claim
-that every tagged historical artifact is byte-proven.
+the attestation binds the registry tarball URL, byte size, and SHA-256 to
+separately reviewed Git identity evidence: the exact tag target, canonical
+commit, and source tree. Because registry metadata contains no embedded
+`gitHead`, the published payload alone does not prove the Git source tree. The
+canonical merge commit remains the reviewed recovery target. Do not generalize
+that reconstructed edge into a claim that every tagged historical artifact is
+byte-proven.
 
 ## Platform Integration
 
