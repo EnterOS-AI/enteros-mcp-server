@@ -30,48 +30,76 @@ jobs:
       # KMS migration (RFC: Gitea-Actions-secrets -> Infisical/KMS), proven
       # #971/#3274 pattern: source MOL_PACKAGE_TOKEN from the Infisical SSOT via
       # the CI machine identity instead of the duplicated Gitea Actions secret.
-      # Runs in the SAME job as the publish consumer so the $GITHUB_ENV export is
-      # visible below. The Gitea secret.MOL_PACKAGE_TOKEN is RETAINED for now;
-      # validate-before-delete happens after this merges and a real run proves
-      # the fetch. Infisical is now the AUTHORITATIVE source for this token, so a
-      # broken/empty/404 fetch HARD-FAILS here (fail-closed) rather than letting
-      # the publish step run with an empty auth token.
-      - name: Fetch MOL_PACKAGE_TOKEN from Infisical SSOT
+      # Infisical is the AUTHORITATIVE source for this token, so a broken,
+      # empty, or 404 fetch HARD-FAILS rather than publishing without auth.
+      # Secret request bodies and headers are streamed over stdin, and the
+      # package token is exported only to the final npm process.
+      - name: Publish with Infisical SSOT credential
         env:
           INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
           INFISICAL_CI_CLIENT_SECRET: ${{ secrets.INFISICAL_CI_CLIENT_SECRET }}
           INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_CI_PROJECT_ID }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           BASE="https://key.moleculesai.app"
-          TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
-            -H 'Content-Type: application/json' \
-            -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
-            | python3 -c 'import sys,json;d=json.load(sys.stdin);v=d.get("accessToken");print(v if isinstance(v,str) and v else "")')
+          : "${INFISICAL_CI_CLIENT_ID:?missing Infisical CI client ID}"
+          : "${INFISICAL_CI_CLIENT_SECRET:?missing Infisical CI client secret}"
+          : "${INFISICAL_PROJECT_ID:?missing Infisical project ID}"
+
+          TOK=$(
+            python3 -c 'import json,os,sys; json.dump({"clientId":os.environ["INFISICAL_CI_CLIENT_ID"],"clientSecret":os.environ["INFISICAL_CI_CLIENT_SECRET"]},sys.stdout)' \
+              | env -u INFISICAL_CI_CLIENT_ID -u INFISICAL_CI_CLIENT_SECRET \
+                  curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
+                    -H 'Content-Type: application/json' --data-binary @- \
+              | env -u INFISICAL_CI_CLIENT_ID -u INFISICAL_CI_CLIENT_SECRET \
+                  python3 -c 'import sys,json;d=json.load(sys.stdin);v=d.get("accessToken");sys.stdout.write(v if isinstance(v,str) else "")'
+          )
+          unset INFISICAL_CI_CLIENT_ID INFISICAL_CI_CLIENT_SECRET
           if [ -z "$TOK" ]; then
             echo "Infisical universal-auth login returned no accessToken -- cannot fetch MOL_PACKAGE_TOKEN; failing closed" >&2
             exit 1
           fi
+          case "$TOK" in
+            *$'\r'*|*$'\n'*)
+              echo "Infisical accessToken contains a forbidden line break; failing closed" >&2
+              exit 1
+              ;;
+          esac
+
           read_secret() {
-            curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
-              -H "Authorization: Bearer $TOK" \
+            printf 'Authorization: Bearer %s\n' "$TOK" \
+              | curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
+                  -H @- \
               | python3 -c 'import sys,json;d=json.load(sys.stdin);v=(d.get("secret") or {}).get("secretValue");print(v if isinstance(v,str) and v else "")'
           }
+
           MOL_PACKAGE_TOKEN=$(read_secret MOL_PACKAGE_TOKEN %2Fci%2Fgitea-npm-publisher)
+          unset TOK
           if [ -z "$MOL_PACKAGE_TOKEN" ]; then
             echo "Infisical returned empty for MOL_PACKAGE_TOKEN at /ci/gitea-npm-publisher (prod) -- authoritative fetch failed; failing closed instead of publishing with an empty token" >&2
             exit 1
           fi
-          echo "::add-mask::$MOL_PACKAGE_TOKEN"
-          echo "MOL_PACKAGE_TOKEN=$MOL_PACKAGE_TOKEN" >> "$GITHUB_ENV"
-          echo "MOL_PACKAGE_TOKEN loaded from Infisical (non-empty, len=${#MOL_PACKAGE_TOKEN})"
+          case "$MOL_PACKAGE_TOKEN" in
+            *$'\r'*|*$'\n'*)
+              echo "MOL_PACKAGE_TOKEN contains a forbidden line break; failing closed" >&2
+              exit 1
+              ;;
+          esac
+          printf '::add-mask::%s\n' "$MOL_PACKAGE_TOKEN"
 
-      - name: Publish to Gitea npm registry
-        env:
-          # Consumed from the process environment ($GITHUB_ENV write above),
-          # proven non-empty by the fail-closed Infisical fetch step.
-          NODE_AUTH_TOKEN: '${{ env.MOL_PACKAGE_TOKEN }}'
-        run: |
-          npm config set @molecule-ai:registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
-          npm config set //git.moleculesai.app/api/packages/molecule-ai/npm/:_authToken "$NODE_AUTH_TOKEN"
-          npm publish --registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
+          umask 077
+          NPM_CONFIG_USERCONFIG=$(mktemp "${RUNNER_TEMP:-/tmp}/molecule-npmrc.XXXXXX")
+          export NPM_CONFIG_USERCONFIG
+          cleanup() { rm -f -- "$NPM_CONFIG_USERCONFIG"; }
+          trap cleanup EXIT
+          # npm expands this environment placeholder when it reads the config;
+          # the shell must keep it literal so the credential is never an argv.
+          # shellcheck disable=SC2016
+          printf '%s\n' \
+            '@molecule-ai:registry=https://git.moleculesai.app/api/packages/molecule-ai/npm/' \
+            '//git.moleculesai.app/api/packages/molecule-ai/npm/:_authToken=${NODE_AUTH_TOKEN}' \
+            > "$NPM_CONFIG_USERCONFIG"
+
+          NODE_AUTH_TOKEN="$MOL_PACKAGE_TOKEN" \
+            npm publish --registry https://git.moleculesai.app/api/packages/molecule-ai/npm/
+          unset MOL_PACKAGE_TOKEN
