@@ -82,11 +82,12 @@ Releases are automated via Gitea Actions on every tag matching `v*`.
 
 The workflow (`.gitea/workflows/publish.yml`):
 1. Pushes `v*` tag → triggers the `publish.yml` Gitea Actions workflow
-2. Workflow runs `npm install`, `npm run build:manifest`, `npm test`
-3. On success: publishes to the **private Gitea npm registry** for the
-   `@molecule-ai` scope (`npm publish --registry
-   https://git.moleculesai.app/api/packages/molecule-ai/npm/`), authenticating
-   with `MOL_PACKAGE_TOKEN` fetched from the Infisical SSOT — **not** public npm
+2. Workflow runs `npm ci`, `npm run build:manifest`, and `npm test`, verifies
+   the exact canonical tag, then rebuilds `dist/` and packs and seals the exact
+   tarball before loading any write-capable registry credential
+3. On success: fetches `MOL_PACKAGE_TOKEN` from the Infisical SSOT and publishes
+   that sealed tarball with lifecycle scripts disabled to the **private Gitea
+   npm registry** for the `@molecule-ai` scope — **not** public npm
 
 **Do not publish manually.** Let the tag push flow handle it.
 
@@ -98,16 +99,20 @@ that the tag does not represent. Ignored build output such as generated
 `dist/` is owned by a separate `prepack` hook: it removes the whole ignored
 tree and regenerates every packed export from reviewed source before npm packs
 the directory. The tag guard never creates, fetches, or moves a tag. The tag
-workflow invokes it before loading its write-capable package credential, and
-`npm publish` invokes the same guard plus the clean rebuild through npm's
-lifecycle.
+workflow invokes the guard and clean rebuild explicitly, packs the result while
+still credential-free, and only then loads its write-capable package
+credential. Its final `npm publish <sealed-tarball> --ignore-scripts` publishes
+the already-verified bytes without rerunning lifecycle code in the credentialed
+step.
 
-This lifecycle hook is not registry-level enforcement. It is skipped by
-`npm publish --ignore-scripts` and by publishing a prebuilt tarball, and direct
-registry requests or control of the configured `origin` can bypass it. Keep the
-write-capable package credential least-privilege and CI-only, and keep release
-tags protected against mutation; those controls are the actual security
-boundary.
+The lifecycle hook is not registry-level enforcement. Outside the official
+workflow it can be skipped with `npm publish --ignore-scripts`, by publishing a
+prebuilt tarball, by making a direct registry request, or through control of the
+configured `origin`. The official workflow uses `--ignore-scripts` only after
+running the equivalent guard/rebuild/package boundary before credentials. Keep
+the write-capable package credential least-privilege and CI-only, and keep
+release tags protected against mutation; those controls are the actual
+security boundary.
 
 The required CI provenance lane distinguishes tag presence from byte proof.
 Every published version must have a matching tag. A reviewed retroactive

@@ -105,4 +105,15 @@ describe("current MCP setup guidance", () => {
     expect(guidance).toMatch(/generic CP admin bearer is never/i);
     expect(guidance).toContain("contracts/promote-request.contract.json");
   });
+
+  it("documents the sealed credential-last package publisher", () => {
+    const claude = read("CLAUDE.md");
+
+    expect(claude).toContain("npm ci");
+    expect(claude).not.toContain("Workflow runs `npm install`");
+    expect(claude).toMatch(/packs and seals the exact\s+tarball before/i);
+    expect(claude).toMatch(
+      /publishes\s+that sealed tarball with lifecycle scripts disabled/i,
+    );
+  });
 });
