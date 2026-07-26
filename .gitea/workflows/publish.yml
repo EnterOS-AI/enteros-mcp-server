@@ -2,12 +2,18 @@ name: Publish to npm
 on:
   push:
     tags: ['v*']
+
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
       - run: npm ci
@@ -98,7 +104,10 @@ jobs:
           TOK=$(
             python3 -c 'import json,os,sys; json.dump({"clientId":os.environ["INFISICAL_CI_CLIENT_ID"],"clientSecret":os.environ["INFISICAL_CI_CLIENT_SECRET"]},sys.stdout)' \
               | env -u INFISICAL_CI_CLIENT_ID -u INFISICAL_CI_CLIENT_SECRET \
-                  curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
+                  curl -fsS --retry 3 --retry-all-errors --retry-max-time 60 \
+                    --connect-timeout 10 --max-time 60 --max-filesize 1048576 \
+                    --proto '=https' --tlsv1.2 -A curl/8.4.0 \
+                    -X POST "$BASE/api/v1/auth/universal-auth/login" \
                     -H 'Content-Type: application/json' --data-binary @- \
               | env -u INFISICAL_CI_CLIENT_ID -u INFISICAL_CI_CLIENT_SECRET \
                   python3 -c 'import sys,json;d=json.load(sys.stdin);v=d.get("accessToken");sys.stdout.write(v if isinstance(v,str) else "")'
@@ -117,7 +126,10 @@ jobs:
 
           read_secret() {
             printf 'Authorization: Bearer %s\n' "$TOK" \
-              | curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
+              | curl -fsS --retry 3 --retry-all-errors --retry-max-time 60 \
+                  --connect-timeout 10 --max-time 60 --max-filesize 1048576 \
+                  --proto '=https' --tlsv1.2 -A curl/8.4.0 \
+                  "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_PROJECT_ID&environment=prod&secretPath=$2" \
                   -H @- \
               | python3 -c 'import sys,json;d=json.load(sys.stdin);v=(d.get("secret") or {}).get("secretValue");print(v if isinstance(v,str) and v else "")'
           }
@@ -134,7 +146,6 @@ jobs:
               exit 1
               ;;
           esac
-          printf '::add-mask::%s\n' "$MOL_PACKAGE_TOKEN"
 
           umask 077
           NPM_CONFIG_USERCONFIG=$(mktemp "${RUNNER_TEMP:-/tmp}/molecule-npmrc.XXXXXX")

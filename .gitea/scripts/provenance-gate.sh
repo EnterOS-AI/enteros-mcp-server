@@ -43,11 +43,11 @@
 #
 # AUTH / SECRET
 #   The packument is fetched from the Gitea npm registry. The raw packument
-#   endpoint is unauthenticated-readable, but to be robust against the registry
-#   enforcing read:package we send a bearer token IF one is present in the
-#   environment as $PROVENANCE_REGISTRY_TOKEN. CI sources that optional token
-#   from Infisical. The header is streamed to curl over stdin, never placed in
-#   process arguments. The gate does NOT hardcode or require write:package.
+#   endpoint is unauthenticated-readable, so ordinary pull-request CI stays
+#   credential-free. An operator may provide a read-only bearer token through
+#   $PROVENANCE_REGISTRY_TOKEN if the registry policy changes; its header is
+#   streamed to curl over stdin, never placed in process arguments. The gate
+#   does NOT hardcode or require write:package.
 
 set -uo pipefail
 
