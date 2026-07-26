@@ -9,8 +9,17 @@
 
 set -euo pipefail
 
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+GATE="$ROOT/.gitea/scripts/provenance-gate.sh"
+
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
+
+[ -f "$GATE" ] || fail "provenance gate is missing: $GATE"
+if grep -Eq 'LOCAL_TAGS=|git tag -l' "$GATE"; then
+  fail "canonical drift must not trust or union unpushed local tags"
+fi
+pass "canonical drift membership is remote-only"
 
 # Pure drift computation, identical to provenance-gate.sh step 4.
 # Args: $1=published (space-sep) $2=tags (space-sep)

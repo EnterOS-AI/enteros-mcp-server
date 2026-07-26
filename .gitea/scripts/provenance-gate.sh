@@ -140,21 +140,16 @@ plan_rc=$?
 [ -n "$PLAN" ] \
   || fail "reviewed recovery download plan is unexpectedly empty"
 
-# --- 3. enumerate the canonical v* git tag set ------------------------------
-# A checkout can contain a non-empty but incomplete local tag subset. Always
-# query canonical origin and union it with local tags; using local tags merely
-# because the set is non-empty can falsely report drift. An unreachable origin
-# fails closed because local completeness cannot be established.
-LOCAL_TAGS=$(git tag -l 'v*' 2>/dev/null | sed 's/^v//')
-REMOTE_TAGS=$(GIT_TERMINAL_PROMPT=0 git ls-remote --tags origin 'v*' 2>/dev/null \
+# --- 3. enumerate the canonical-origin v* git tag set -----------------------
+# Local tags are not provenance: an unpushed local v<version> must not suppress
+# registry drift. Query canonical origin directly and fail closed if it cannot
+# be enumerated.
+TAGS=$(GIT_TERMINAL_PROMPT=0 git ls-remote --tags origin 'v*' 2>/dev/null \
   | sed -n 's#.*refs/tags/v\([^^{}]*\)$#\1#p')
-remote_tags_rc=$?
-[ "$remote_tags_rc" -eq 0 ] \
-  || fail "could not enumerate canonical origin v* tags (rc=$remote_tags_rc)"
-TAGS=$(printf '%s\n%s\n' "$LOCAL_TAGS" "$REMOTE_TAGS" \
-  | sed '/^$/d' | LC_ALL=C sort -u)
-[ -n "$TAGS" ] \
-  || fail "canonical origin and local checkout contain no v* tags"
+tags_rc=$?
+[ "$tags_rc" -eq 0 ] \
+  || fail "could not enumerate canonical origin v* tags (rc=$tags_rc)"
+[ -n "$TAGS" ] || fail "canonical origin contains no v* tags"
 
 # --- 4. compute drift = published - tagged ----------------------------------
 DRIFT=""
