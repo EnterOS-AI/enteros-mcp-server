@@ -15,6 +15,9 @@ jobs:
       # producer-emitted dist/manifest.json (per-mode, versioned tool manifest,
       # RFC #3285 P1) is generated BEFORE `npm publish` and ships in the npm
       # tarball (no `files` allowlist / `.npmignore`; exports point into dist/).
+      # npm publish invokes prepack after the tag guard; prepack removes the
+      # whole ignored dist/ tree and regenerates it, so stale or injected
+      # ignored output cannot survive into an ordinary directory publish.
       - run: npm run build:manifest
       - run: npm test
 

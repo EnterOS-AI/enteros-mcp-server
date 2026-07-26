@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package": "@molecule-ai/mcp-server",
+  "registry": "https://git.moleculesai.app/api/packages/molecule-ai/npm",
+  "recoveries": [
+    {
+      "version": "1.9.6",
+      "tag": "v1.9.6",
+      "canonical_commit": "b37f66871b5fc39b985680925970e754bcd1d676",
+      "source_tree": "8d7c92a203cc8107f5cf530c627d9441f5183157",
+      "tarball_url": "https://git.moleculesai.app/api/packages/molecule-ai/npm/%40molecule-ai%2Fmcp-server/-/1.9.6/mcp-server-1.9.6.tgz",
+      "tarball_size": 316791,
+      "tarball_sha256": "91c475c7bc181a5c82c7c97cb97538b3118f588b75184270b4f9f812bdfa1fb7"
+    }
+  ]
+}

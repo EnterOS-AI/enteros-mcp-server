@@ -136,7 +136,7 @@ unlink "$repo/untracked.txt"
 mkdir -p "$repo/dist"
 printf 'generated\n' > "$repo/dist/generated.js"
 expect_guard_pass \
-  "ignored build output remains publishable" \
+  "tag guard delegates ignored build output cleanup to prepack" \
   "1.0.1"
 
 git -C "$repo" tag -a v1.0.2 -m "v1.0.2"

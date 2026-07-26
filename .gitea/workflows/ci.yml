@@ -22,6 +22,12 @@ jobs:
       - name: Publish tag guard self-test
         run: bash .gitea/scripts/tests/test_publish_tag_guard.sh
 
+      - name: Package byte-provenance self-tests
+        run: |
+          bash .gitea/scripts/tests/test_package_byte_boundary.sh
+          bash .gitea/scripts/tests/test_published_artifact_provenance.sh
+          bash .gitea/scripts/tests/test_provenance_gate.sh
+
       - name: Build
         run: npm run build
 
@@ -34,33 +40,19 @@ jobs:
       - name: Promote request SDK SSOT sync
         run: bash .gitea/scripts/check-promote-request-vendor-sync.sh
 
-  # Publish-provenance gate (ADVISORY — continue-on-error, does NOT block merge).
+  # Required release-provenance lane. This is intentionally an ordinary
+  # fail-closed job: registry/tag drift reports a red CI status.
   #
-  # Asserts every PUBLISHED npm version of @molecule-ai/mcp-server has a
-  # matching v<version> git tag. Detects OUT-OF-BAND publishes: the Gitea npm
-  # registry accepts `npm publish` from any write:package token with no
-  # coupling to a git tag / CI run / review, so a local publish can skip the
-  # tag-triggered publish.yml entirely (1.6.0 and 1.6.1 already did this).
+  # Every published version requires a matching v<version> tag. A reviewed
+  # retroactive recovery additionally requires the exact registry tarball
+  # size/SHA-256 and exact tag -> canonical commit -> source tree mapping from
+  # contracts/published-package-provenance.json. A tag alone is deliberately
+  # not described as artifact-byte provenance.
   #
-  # ADVISORY-FIRST RATIONALE: continue-on-error means a red here does NOT block
-  # merges. The merge-queue reads required contexts from BRANCH PROTECTION
-  # (status_check_contexts), not job names, and ignores non-required
-  # continue-on-error jobs -- so this job cannot gate a merge today. This is
-  # deliberate: 1.6.0/1.6.1 are currently untagged, so a *required* check would
-  # immediately red main. The gate allowlists 1.6.0/1.6.1 (see
-  # provenance-gate.sh) so it is GREEN at introduction.
-  #
-  # PROMOTE TO REQUIRED only AFTER both land:
-  #   (1) the 1.6.x cleanup (retro-tag v1.6.0/v1.6.1 + empty the allowlist, OR
-  #       unpublish the out-of-band 1.6.x), and
-  #   (2) the publish-token lockdown (OWNER: revoke every non-CI write:package
-  #       token on org molecule-ai so the only publisher is CI's
-  #       MOL_PACKAGE_TOKEN at Infisical /ci/gitea-npm-publisher).
-  # Then remove continue-on-error here and add "CI / provenance" to branch
-  # protection's status_check_contexts (owner-only BP edit).
+  # Branch protection must include "CI / provenance" in its required contexts;
+  # that server-side setting remains the merge-enforcement SSOT.
   provenance:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -120,7 +112,7 @@ jobs:
           echo "PROVENANCE_REGISTRY_TOKEN=$PROVENANCE_REGISTRY_TOKEN" >> "$GITHUB_ENV"
           echo "read:package token loaded from Infisical SSOT (non-empty, len=${#PROVENANCE_REGISTRY_TOKEN})"
 
-      - name: Publish-provenance gate (advisory)
+      - name: Published tag + artifact provenance gate (required)
         env:
           # OPTIONAL read:package token for the Gitea npm registry, sourced from
           # the Infisical SSOT in the step above (NOT a Gitea Actions secret).
@@ -129,6 +121,3 @@ jobs:
           # a bearer if PROVENANCE_REGISTRY_TOKEN is non-empty.
           PROVENANCE_REGISTRY_TOKEN: ${{ env.PROVENANCE_REGISTRY_TOKEN }}
         run: bash .gitea/scripts/provenance-gate.sh
-
-      - name: Provenance-gate self-test
-        run: bash .gitea/scripts/tests/test_provenance_gate.sh

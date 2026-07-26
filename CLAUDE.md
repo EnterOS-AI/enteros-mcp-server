@@ -95,9 +95,12 @@ directory publishes. It requires the canonical `origin` tag matching the
 package version (`vX.Y.Z`) to already exist and peel to the exact commit at
 `HEAD`, and rejects staged, unstaged tracked, or nonignored untracked content
 that the tag does not represent. Ignored build output such as generated
-`dist/` remains allowed. The guard never creates, fetches, or moves a tag.
-The tag workflow invokes the guard before loading its write-capable package
-credential, and `npm publish` invokes it again through the lifecycle hook.
+`dist/` is owned by a separate `prepack` hook: it removes the whole ignored
+tree and regenerates every packed export from reviewed source before npm packs
+the directory. The tag guard never creates, fetches, or moves a tag. The tag
+workflow invokes it before loading its write-capable package credential, and
+`npm publish` invokes the same guard plus the clean rebuild through npm's
+lifecycle.
 
 This lifecycle hook is not registry-level enforcement. It is skipped by
 `npm publish --ignore-scripts` and by publishing a prebuilt tarball, and direct
@@ -105,6 +108,16 @@ registry requests or control of the configured `origin` can bypass it. Keep the
 write-capable package credential least-privilege and CI-only, and keep release
 tags protected against mutation; those controls are the actual security
 boundary.
+
+The required CI provenance lane distinguishes tag presence from byte proof.
+Every published version must have a matching tag. A reviewed retroactive
+recovery listed in `contracts/published-package-provenance.json` must also match
+the exact tag target, canonical source tree, registry tarball URL, byte size,
+and SHA-256. The current `1.9.6` entry records reconstructed recovery evidence:
+the published payload proves the attested source tree, while the canonical
+merge commit is the reviewed recovery target because registry metadata contains
+no embedded `gitHead`. Do not generalize that reconstructed edge into a claim
+that every tagged historical artifact is byte-proven.
 
 ## Platform Integration
 
