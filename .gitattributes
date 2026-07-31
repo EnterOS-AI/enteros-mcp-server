@@ -1,0 +1,16 @@
+# Byte-exact SSOT-vendor gates -> contracts/ MUST be LF.
+#
+# Three CI gates fetch the molecule-ai-sdk canonical over /raw and byte-compare
+# it against the vendored copy in contracts/:
+#   * .gitea/scripts/check-contract-vendor-sync.sh
+#         diff -u "$TMP" "contracts/mcp-plugin-delivery.contract.json"
+#   * .gitea/scripts/check-credentials-vendor-sync.sh
+#         diff -u "$TMP" "contracts/credentials.contract.json"
+#   * .gitea/scripts/check-promote-request-vendor-sync.sh
+#         cmp -s "$TMP" "contracts/promote-request.contract.json"
+# None of the three canonicalizes the JSON first, so all three are newline
+# sensitive. The SDK serves LF and pins these paths with `contracts/** text
+# eol=lf` on its side; this repo had no .gitattributes at all, so a check-in or
+# checkout from a box with core.autocrlf=true smudges the mirror to CRLF and
+# reds every one of them on newlines alone. Pin LF to match the SSOT.
+contracts/** text eol=lf
