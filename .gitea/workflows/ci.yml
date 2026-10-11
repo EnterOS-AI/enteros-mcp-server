@@ -20,7 +20,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run build:manifest
 
       - name: Test
         run: npm test
@@ -66,8 +66,8 @@ jobs:
           fetch-tags: true
 
       # Source the OPTIONAL read:package token from the Infisical SSOT (not a
-      # Gitea Actions secret). The token is MOLECULE_TEMPLATE_REPO_TOKEN at
-      # /shared/controlplane (prod), which carries read:package on org
+      # Gitea Actions secret). The token is MCP_SERVER_READPKG_TOKEN at
+      # /shared/controlplane (prod), a dedicated read:package credential for org
       # molecule-ai. Per the no-Actions-secret / SSOT directive, the only Gitea
       # Actions secrets used here are the documented Infisical bootstrap creds
       # (INFISICAL_CI_CLIENT_ID / INFISICAL_CI_CLIENT_SECRET /
@@ -108,9 +108,9 @@ jobs:
               -H "Authorization: Bearer $TOK" \
               | python3 -c 'import json,sys; d=json.load(sys.stdin); v=(d.get("secret") or {}).get("secretValue"); print(v if isinstance(v,str) and v else "")'
           }
-          PROVENANCE_REGISTRY_TOKEN=$(read_secret MOLECULE_TEMPLATE_REPO_TOKEN %2Fshared%2Fcontrolplane)
+          PROVENANCE_REGISTRY_TOKEN=$(read_secret MCP_SERVER_READPKG_TOKEN %2Fshared%2Fcontrolplane)
           if [ -z "$PROVENANCE_REGISTRY_TOKEN" ]; then
-            echo "::warning::Infisical returned empty for MOLECULE_TEMPLATE_REPO_TOKEN at /shared/controlplane (prod) -- proceeding tokenless against the public packument (the read:package token is optional)."
+            echo "::warning::Infisical returned empty for MCP_SERVER_READPKG_TOKEN at /shared/controlplane (prod) -- proceeding tokenless against the public packument (the read:package token is optional)."
             exit 0
           fi
           echo "::add-mask::$PROVENANCE_REGISTRY_TOKEN"

@@ -151,7 +151,10 @@ export function authHeaders(): Record<string, string> {
  * same shape (and a future switch to e.g. structured content happens once).
  */
 export function toMcpResult(data: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    ...(isApiError(data) ? { isError: true } : {}),
+  };
 }
 
 /**

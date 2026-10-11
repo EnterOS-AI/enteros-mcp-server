@@ -356,6 +356,7 @@ describe("(c) self mode registers only the schedule tools", () => {
     // the management or workspace-ops surface.
     for (const forbidden of [
       "provision_workspace",
+      "rename_workspace",
       "deprovision_workspace",
       "create_workspace",
       "list_workspaces",

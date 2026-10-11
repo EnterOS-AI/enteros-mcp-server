@@ -5,10 +5,9 @@ MCP server that exposes Molecule AI platform operations as tools for AI coding a
 ## Tool registries
 
 The authoritative tool list is generated from each real `createServer()` mode by
-`npm run build:manifest` and written to `dist/manifest.json`. On this exact
-source, generation reports **85 workspace-mode tools** and **46 management-mode
-tools**; tests ratchet those counts to the registrations. The highlights below
-are intentionally not a hand-maintained full list.
+`npm run build:manifest` and written to `dist/manifest.json`. Read that artifact
+for the current workspace and management tool names, schemas, and counts.
+The highlights below are intentionally not a hand-maintained full list.
 
 | Category | Tools |
 |----------|-------|
@@ -131,7 +130,7 @@ because several tool names overlap).
 
 | Group | Tools |
 |-------|-------|
-| Workspaces | `list_workspaces`, `get_workspace`, `provision_workspace`, `deprovision_workspace`, `restart_workspace`, `pause_workspace`, `resume_workspace` |
+| Workspaces | `list_workspaces`, `get_workspace`, `rename_workspace`, `provision_workspace`, `deprovision_workspace`, `restart_workspace`, `pause_workspace`, `resume_workspace` |
 | Secrets | `set_workspace_secret`, `list_workspace_secrets`, `delete_workspace_secret`, `set_org_secret`, `list_org_secrets`, `delete_org_secret` |
 | Budget / billing | `set_workspace_budget`, `set_llm_billing_mode` |
 | Templates / org import | `list_org_templates`, `create_org_from_template`, `list_templates`, `import_template` |
@@ -143,6 +142,15 @@ because several tool names overlap).
 | **CP-tier (gated)** | `list_orgs`, `get_org`, `promote_to_production` |
 
 Each tool's input schema, endpoint, and request body are derived from the
+canonical tenant implementation. For example, `rename_workspace` sends only
+`{ "name": "Personal Brand" }` to `PATCH /workspaces/:id`. Resolve the UUID
+with `list_workspaces` first; names can repeat under different parents. A
+rename preserves the UUID, files, history, configuration, and running agent.
+Blank names are rejected, and a sibling name collision returns a conflict
+instead of silently picking another name. The default workspace registry
+offers the same operation through `update_workspace`.
+
+The authoritative routes and validation live in the
 canonical tenant router/handler source
 (`molecule-core/workspace-server/internal/router/router.go` +
 `internal/handlers/*`) — the same source the management OpenAPI is being
