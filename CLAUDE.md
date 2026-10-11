@@ -184,10 +184,13 @@ src/
 ## MCP Tool Registry
 
 `npm run build:manifest` composes the real server in both modes and writes the
-authoritative names, descriptions, and schemas to `dist/manifest.json`. The
-current generated totals are **85 workspace-mode tools** and **46
-management-mode tools**, ratcheted by the registration tests. The tables below
-are a workspace-mode reference, not an exhaustive registry.
+authoritative names, descriptions, and schemas to `dist/manifest.json`. Read
+that artifact for current counts. The tables below are a workspace-mode
+reference, not an exhaustive registry.
+
+In management mode, `rename_workspace` patches only the name of an existing
+workspace by UUID. It preserves identity, history, and the running agent; it
+does not use deprovision/provision or require a restart.
 
 The management-only `promote_to_production` tool is bound to the exact vendored
 `contracts/promote-request.contract.json`, which required CI pins byte-for-byte

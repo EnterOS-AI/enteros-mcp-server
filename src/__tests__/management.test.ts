@@ -57,6 +57,7 @@ import {
   handleListAvailablePlugins as mgmtListAvailablePlugins,
   handleListWorkspaces as mgmtListWorkspaces,
   handleGetWorkspace,
+  handleRenameWorkspace,
   handleRestartWorkspace,
   handlePauseWorkspace,
   handleResumeWorkspace,
@@ -271,6 +272,38 @@ describe("org secret tools", () => {
 });
 
 describe("workspace lifecycle tools", () => {
+  it("renames in place with the org credential and only the name field", async () => {
+    const workspace_id = "aaaaaaaa-0000-4000-8000-000000000001";
+    const f = mockFetch({ status: "updated", workspace_id, name: "Personal Brand" });
+    global.fetch = f as unknown as typeof fetch;
+    const result = await handleRenameWorkspace({ workspace_id, name: " Personal Brand ", tier: 4 });
+    expect(f).toHaveBeenCalledTimes(1);
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/${workspace_id}`);
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ name: "Personal Brand" });
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(headersOf(init)["X-Molecule-Org-Id"]).toBe(ORG_ID);
+    expect(parsed(result)).toEqual({ status: "updated", workspace_id, name: "Personal Brand" });
+  });
+
+  it.each([undefined, null, "", "   ", 123])("rejects invalid rename name %p before HTTP", async (name) => {
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    await expect(handleRenameWorkspace({ workspace_id: "aaaaaaaa-0000-4000-8000-000000000001", name })).rejects.toThrow();
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing org credential before renaming", async () => {
+    delete process.env.MOLECULE_ORG_API_KEY;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const result = await handleRenameWorkspace({ workspace_id: "aaaaaaaa-0000-4000-8000-000000000001", name: "Personal Brand" });
+    expect(result.isError).toBe(true);
+    expect(parsed(result).error).toBe("AUTH_ERROR");
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("provision_workspace POSTs to /workspaces with the supplied fields", async () => {
     const f = mockFetch({ id: "w-new" });
     global.fetch = f as unknown as typeof fetch;
@@ -826,7 +859,7 @@ describe("registration + mode", () => {
     for (const expected of [
       "list_orgs", "get_org", "promote_to_production",
       "migrate_workspace_provider", "get_workspace_migration_status",
-      "list_workspaces", "get_workspace", "provision_workspace", "deprovision_workspace",
+      "list_workspaces", "get_workspace", "rename_workspace", "provision_workspace", "deprovision_workspace",
       "restart_workspace", "pause_workspace", "resume_workspace",
       "set_workspace_secret", "list_workspace_secrets", "delete_workspace_secret",
       "set_org_secret", "list_org_secrets", "delete_org_secret",

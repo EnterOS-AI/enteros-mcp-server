@@ -69,8 +69,7 @@ export async function handleListActivity(params: {
   const urlParams = new URLSearchParams();
   if (type) urlParams.set("type", type);
   if (limit) urlParams.set("limit", String(limit));
-  const qs = urlParams.toString() ? `?${urlParams.toString()}` : "";
-  const data = await platformGet(`/workspaces/${workspace_id}/activity${qs}`);
+  const data = await platformGet(`/workspaces/${workspace_id}/activity`, 3, undefined, urlParams);
   return toMcpResult(data);
 }
 

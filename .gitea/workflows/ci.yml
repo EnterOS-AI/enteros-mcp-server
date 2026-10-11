@@ -35,7 +35,7 @@ jobs:
           python3 .gitea/scripts/tests/test_workflow_secret_boundary.py
 
       - name: Build
-        run: npm run build
+        run: npm run build:manifest
 
       - name: Test
         run: npm test

@@ -60,7 +60,7 @@ export type GetWorkspaceApprovalsParams = z.infer<typeof GetWorkspaceApprovalsSc
 export async function handleListPendingApprovals(): Promise<ReturnType<typeof toMcpResult>> {
   // Cross-org pending view, filtered to the approval slice. P1's
   // /requests/pending supports ?kind=task|approval (validated server-side).
-  const data = await platformGet("/requests/pending?kind=approval");
+  const data = await platformGet("/requests/pending", 3, undefined, { kind: "approval" });
   return toMcpResult(data);
 }
 

@@ -114,15 +114,23 @@ export async function handleCreateRequest(args: unknown): Promise<ReturnType<typ
 
 export async function handleListInbox(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const p = validate(args, ListInboxSchema);
-  const qs = p.status ? `?status=${encodeURIComponent(p.status)}` : "";
-  const data = await platformGet(`/workspaces/${p.workspace_id}/requests/inbox${qs}`);
+  const data = await platformGet(
+    `/workspaces/${p.workspace_id}/requests/inbox`,
+    3,
+    undefined,
+    { status: p.status },
+  );
   return toMcpResult(data);
 }
 
 export async function handleCheckRequests(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const p = validate(args, CheckRequestsSchema);
-  const qs = p.status ? `?status=${encodeURIComponent(p.status)}` : "";
-  const data = await platformGet(`/workspaces/${p.workspace_id}/requests${qs}`);
+  const data = await platformGet(
+    `/workspaces/${p.workspace_id}/requests`,
+    3,
+    undefined,
+    { status: p.status },
+  );
   return toMcpResult(data);
 }
 

@@ -651,6 +651,14 @@ describe("handleRemoveAgent()", () => {
       expect.objectContaining({ method: "DELETE" })
     );
   });
+
+  test("rejects query/fragment injection in the workspace id before fetch", async () => {
+    global.fetch = mockFetch({ removed: true });
+    const result = await handleRemoveAgent({ workspace_id: "victim?confirm=true#" });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expectJsonContent(result, expect.objectContaining({ error: "Invalid platform API path" }));
+  });
 });
 
 describe("handleMoveAgent()", () => {
@@ -736,6 +744,26 @@ describe("handleReadFile()", () => {
     const result = await handleReadFile({ workspace_id: "ws-f", path: "other.yaml" });
     expect(result.content[0].text).toContain("raw");
   });
+
+  test("encodes each nested file path segment", async () => {
+    global.fetch = mockFetch({ content: "# Skill" });
+    await handleReadFile({ workspace_id: "ws-f", path: "skills/My Skill/SKILL.md" });
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${PLATFORM_URL}/workspaces/ws-f/files/skills/My%20Skill/SKILL.md`,
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  test.each(["../settings/secrets", "skills/../../settings", "/etc/passwd", "skills\\secret"])(
+    "rejects unsafe file path %s before fetch",
+    async (path) => {
+      global.fetch = mockFetch({ content: "must not be reached" });
+      await expect(handleReadFile({ workspace_id: "ws-f", path })).rejects.toThrow(
+        "File path must be relative and contain no dot segments"
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe("handleWriteFile()", () => {
@@ -1350,6 +1378,22 @@ describe("Global secrets handlers", () => {
       `${PLATFORM_URL}/settings/secrets/OLD_KEY`,
       expect.objectContaining({ method: "DELETE" })
     );
+  });
+
+  test("handleDeleteGlobalSecret encodes the key as one path segment", async () => {
+    global.fetch = mockFetch({ status: "deleted" });
+    await handleDeleteGlobalSecret({ key: "TEAM/OLD KEY" });
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${PLATFORM_URL}/settings/secrets/TEAM%2FOLD%20KEY`,
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  test("remaining raw dot segments are rejected centrally", async () => {
+    global.fetch = mockFetch({ status: "must not be reached" });
+    const result = await handleDeleteGlobalSecret({ key: ".." });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expectJsonContent(result, expect.objectContaining({ error: "Invalid platform API path" }));
   });
 });
 

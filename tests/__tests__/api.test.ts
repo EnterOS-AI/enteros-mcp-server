@@ -280,6 +280,29 @@ describe("apiCall", () => {
     );
   });
 
+  it("rejects inline query and fragment data before fetch", async () => {
+    global.fetch = mockFetch({}, { status: 200 });
+
+    await expect(apiCall("DELETE", "/workspaces/victim?confirm=true#")).resolves.toEqual(
+      expect.objectContaining({ error: "Invalid platform API path" }),
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("serializes query parameters through the dedicated argument", async () => {
+    global.fetch = mockFetch({}, { status: 200 });
+
+    await apiCall("DELETE", "/workspaces/ws-1", undefined, undefined, {
+      confirm: true,
+      name: "A/B #1",
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/workspaces/ws-1?confirm=true&name=A%2FB+%231"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("uses Content-Type: application/json header", async () => {
     global.fetch = mockFetch({}, { status: 200 });
 
