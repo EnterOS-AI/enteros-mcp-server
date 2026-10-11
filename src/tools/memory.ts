@@ -27,7 +27,7 @@ export async function handleSearchMemory(params: {
 
 export async function handleDeleteMemory(params: { workspace_id: string; memory_id: string }) {
   const { workspace_id, memory_id } = params;
-  const data = await apiCall("DELETE", `/workspaces/${workspace_id}/memories/${memory_id}`);
+  const data = await apiCall("DELETE", `/workspaces/${workspace_id}/v2/memories/${memory_id}`);
   return toMcpResult(data);
 }
 
@@ -41,11 +41,6 @@ export async function handleSessionSearch(params: {
   if (q) qs.set("q", q);
   if (limit) qs.set("limit", String(limit));
   const data = await platformGet(`/workspaces/${workspace_id}/session-search`, 3, undefined, qs);
-  return toMcpResult(data);
-}
-
-export async function handleGetSharedContext(params: { workspace_id: string }) {
-  const data = await platformGet(`/workspaces/${params.workspace_id}/shared-context`);
   return toMcpResult(data);
 }
 
@@ -118,13 +113,6 @@ export function registerMemoryTools(srv: McpServer) {
       limit: z.number().optional(),
     },
     handleSessionSearch,
-  );
-
-  srv.tool(
-    "get_shared_context",
-    "Get the shared-context blob for a workspace (persistent cross-turn context).",
-    { workspace_id: z.string() },
-    handleGetSharedContext,
   );
 
   srv.tool(

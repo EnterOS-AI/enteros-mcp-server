@@ -106,9 +106,23 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "management";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names.length).toBeGreaterThan(0);
+    expect(names).toHaveLength(55); // 47 management + 6 schedule + 2 plugin-update verbs
     expect(new Set(names).size).toBe(names.length); // no duplicate registrations
     expect(names).toContain("provision_workspace");
+    expect(names).toContain("rename_workspace");
+    expect(names).toContain("promote_to_production");
+    // Cross-workspace schedule management (org key) is part of the management surface.
+    for (const verb of [
+      "create_schedule", "update_schedule", "delete_schedule",
+      "list_schedules", "run_schedule", "get_schedule_history",
+    ]) {
+      expect(names).toContain(verb);
+    }
+    // Plugin auto-update verbs (concierge plugin-auto-update schedule) are
+    // management-only.
+    expect(names).toContain("check_plugin_updates");
+    expect(names).toContain("apply_plugin_update");
+    expect(names).not.toContain("recreate_workspace");
     expect(names).not.toContain("chat_with_agent"); // workspace-only verb absent
   });
 
@@ -116,8 +130,14 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names.length).toBeGreaterThan(0);
+    expect(names).toHaveLength(85);
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain("chat_with_agent");
+    expect(names).not.toContain("list_channels");
+    expect(names).not.toContain("add_channel");
+    expect(names).not.toContain("test_channel");
+    // Plugin auto-update verbs are MANAGEMENT-only (AdminAuth + org key).
+    expect(names).not.toContain("check_plugin_updates");
+    expect(names).not.toContain("apply_plugin_update");
   });
 });

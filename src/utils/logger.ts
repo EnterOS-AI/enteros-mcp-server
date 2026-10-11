@@ -45,25 +45,36 @@ function logger(): PinoLogger {
     // pino is called untyped (as the prior `require("pino") as any` did) so the
     // existing numeric `level` + transport/formatter options keep their runtime
     // behavior without re-typing against pino's stricter option types.
+    // ALL log output MUST go to stderr (fd 2). This server speaks MCP over
+    // stdio: stdout is the JSONRPC channel, and any log line written there —
+    // pretty-printed OR plain JSON — corrupts the protocol stream. (Seen in
+    // the field 2026-07-19: the colorized startup banner on stdout made every
+    // hermes tool call hang behind "Failed to parse JSONRPC message".)
+    const pretty = process.env["NODE_ENV"] !== "production" || process.stdout.isTTY;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _logger = (pino as any)({
-      // Level 30 (warn) and above; quiet by default so MCP protocol traffic
-      // is not logged (only application-level events).
-      level: Number(process.env["LOG_LEVEL"] ?? 30),
-      // Pretty-print when run interactively (TTY) or when explicitly requested.
-      transport:
-        process.env["NODE_ENV"] !== "production" || process.stdout.isTTY
-          ? { target: "pino-pretty", options: { colorize: true } }
+    _logger = (pino as any)(
+      {
+        // Level 30 (warn) and above; quiet by default so MCP protocol traffic
+        // is not logged (only application-level events).
+        level: Number(process.env["LOG_LEVEL"] ?? 30),
+        // Pretty-print when run interactively (TTY) or when explicitly requested.
+        transport: pretty
+          ? { target: "pino-pretty", options: { colorize: true, destination: 2 } }
           : undefined,
-      base: {
-        // Strip the pid and hostname fields that pino adds by default — they
-        // are noise for a containerised MCP server.
-        pid: undefined,
-        hostname: undefined,
+        base: {
+          // Strip the pid and hostname fields that pino adds by default — they
+          // are noise for a containerised MCP server.
+          pid: undefined,
+          hostname: undefined,
+        },
+        // Do not redact anything by default; the platform handles secrets.
+        redact: [],
       },
-      // Do not redact anything by default; the platform handles secrets.
-      redact: [],
-    });
+      // pino rejects a destination stream alongside `transport`, so only the
+      // non-pretty (plain JSON) path passes one explicitly.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pretty ? undefined : (pino as any).destination(2),
+    );
   }
   return _logger!;
 }

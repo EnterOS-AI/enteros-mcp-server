@@ -44,8 +44,6 @@ import {
   handleCommitMemory,
   handleSearchMemory,
   handleListTemplates,
-  handleExpandTeam,
-  handleCollapseTeam,
   handleListPendingApprovals,
   handleDecideApproval,
   handleUpdateWorkspace,
@@ -853,13 +851,43 @@ describe("handleSearchMemory()", () => {
 });
 
 describe("handleDeleteMemory()", () => {
-  test("DELETEs /workspaces/:id/memories/:memory_id", async () => {
-    global.fetch = mockFetch({ deleted: true });
-    await handleDeleteMemory({ workspace_id: "ws-m", memory_id: "mem-42" });
+  const savedKey = process.env.MOLECULE_API_KEY;
+
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.MOLECULE_API_KEY;
+    else process.env.MOLECULE_API_KEY = savedKey;
+  });
+
+  test("DELETEs the supported v2 memory route with tenant auth", async () => {
+    process.env.MOLECULE_API_KEY = "tenant-memory-token";
+    global.fetch = mockFetch({ status: "deleted" });
+
+    const result = await handleDeleteMemory({ workspace_id: "ws-m", memory_id: "mem-42" });
+
     expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-m/memories/mem-42`,
-      expect.objectContaining({ method: "DELETE" })
+      `${PLATFORM_URL}/workspaces/ws-m/v2/memories/mem-42`,
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer tenant-memory-token",
+          "Content-Type": "application/json",
+        }),
+        body: undefined,
+      }),
     );
+    expectJsonContent(result, { status: "deleted" });
+  });
+
+  test("preserves Core's v2 delete error response", async () => {
+    process.env.MOLECULE_API_KEY = "tenant-memory-token";
+    global.fetch = mockFetch({ error: "memory not found" }, false, 404);
+
+    const result = await handleDeleteMemory({ workspace_id: "ws-m", memory_id: "missing" });
+
+    expectJsonContent(result, {
+      error: "HTTP 404",
+      detail: JSON.stringify({ error: "memory not found" }),
+    });
   });
 });
 
@@ -888,32 +916,6 @@ describe("handleImportTemplate()", () => {
     expect(callArgs[1].method).toBe("POST");
     const sent = JSON.parse(callArgs[1].body);
     expect(sent.name).toBe("my-template");
-  });
-});
-
-// ============================================================
-// Team Expansion
-// ============================================================
-
-describe("handleExpandTeam()", () => {
-  test("POSTs to /workspaces/:id/expand", async () => {
-    global.fetch = mockFetch({ expanded: true });
-    await handleExpandTeam({ workspace_id: "ws-team" });
-    expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-team/expand`,
-      expect.objectContaining({ method: "POST" })
-    );
-  });
-});
-
-describe("handleCollapseTeam()", () => {
-  test("POSTs to /workspaces/:id/collapse", async () => {
-    global.fetch = mockFetch({ collapsed: true });
-    await handleCollapseTeam({ workspace_id: "ws-team" });
-    expect(global.fetch).toHaveBeenCalledWith(
-      `${PLATFORM_URL}/workspaces/ws-team/collapse`,
-      expect.objectContaining({ method: "POST" })
-    );
   });
 });
 
@@ -1210,12 +1212,12 @@ describe("createServer()", () => {
   // and each tool() call is recorded by the mocked McpServer above. If a
   // future PR adds a tool file but forgets to call its registerXxxTools
   // from createServer(), this count drops and the test fails. We assert
-  // the concrete current tool count (89) rather than a lower bound so a
+  // the concrete current tool count (85) rather than a lower bound so a
   // silently-dropped handler is also caught.
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(96);
+    expect(names.length).toBe(85);
     // create_issue (Gitea bug-filing) must be wired into the default surface.
     expect(names).toContain("create_issue");
     // Unified requests/inbox tools (RFC P2) — all 7 wired into the surface.
@@ -1226,6 +1228,18 @@ describe("createServer()", () => {
     expect(names).toContain("respond_request");
     expect(names).toContain("add_request_message");
     expect(names).toContain("cancel_request");
+    for (const retired of [
+      "list_channel_adapters",
+      "list_channels",
+      "add_channel",
+      "update_channel",
+      "remove_channel",
+      "send_channel_message",
+      "test_channel",
+      "discover_channel_chats",
+    ]) {
+      expect(names).not.toContain(retired);
+    }
     // Names must be unique — a duplicate registration would indicate a
     // copy-paste mistake in one of the registerXxxTools() calls.
     expect(new Set(names).size).toBe(names.length);

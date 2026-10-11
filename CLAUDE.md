@@ -18,6 +18,12 @@ npm run build
 # Run tests (Jest, config in jest.config.cjs)
 npm test
 
+# Run the real MCP transport / local HTTP integration suite
+npm run test:integration
+
+# Verify the vendored promote contract is byte-identical to the SDK SSOT
+bash .gitea/scripts/check-promote-request-vendor-sync.sh
+
 # Type check without building
 npm run lint    # if present
 ```
@@ -69,20 +75,10 @@ Releases are automated via Gitea Actions on every tag matching `v*`.
 
 ### Cutting a Release
 
-```bash
-# Make sure you're on main and all tests pass
-git checkout main
-git pull
-
-# Bump version in package.json, commit
-vim package.json
-git add package.json
-git commit -m "chore: bump version to x.y.z"
-
-# Tag and push
-git tag vx.y.z
-git push origin main --tags
-```
+1. Land the `package.json` version bump through a normal reviewed PR; never push
+   a release commit directly to `main`.
+2. After explicit release approval, verify the intended commit is the current
+   green `main`, create `vX.Y.Z` at that exact commit, and push only the tag.
 
 The workflow (`.gitea/workflows/publish.yml`):
 1. Pushes `v*` tag → triggers the `publish.yml` Gitea Actions workflow
@@ -101,17 +97,17 @@ The workflow (`.gitea/workflows/publish.yml`):
 The server connects to the Molecule AI platform REST API via its own TypeScript
 client (`src/api.ts`). It does not use the Python SDK (`molecule-ai-sdk`) —
 the Python SDK is for remote agents that run outside the platform; this server
-runs as an MCP bridge *on* the operator side.
+connects through the configured Molecule platform API.
 
 ### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `MOLECULE_API_URL` | Yes | Base URL of the Molecule platform API |
-| `MOLECULE_API_KEY` | Yes | API key for platform authentication |
-| `MCP_SERVER_PORT` | No | Port to run the MCP server on (default: `3000`) |
+| `MOLECULE_API_URL` | Yes | Per-tenant workspace API base (`https://<slug>.moleculesai.app` in SaaS) |
+| `MOLECULE_API_KEY` | Yes in SaaS | Tenant API bearer; optional only for a no-auth localhost stack |
 
-For local development, copy `.env.example` → `.env` and fill in values.
+Set these values in the MCP host configuration or the launching shell. The
+entrypoint does not load a repository `.env` file.
 
 ### Postgres
 
@@ -136,7 +132,8 @@ Platform data lives in Postgres (source of truth). The server reads data via the
 - Strict mode is enabled (`"strict": true` in `tsconfig.json`)
 - Avoid `any` — use `unknown` and narrow with type guards or Zod validators
 - Use `zod` for all external input validation (API args, tool schemas)
-- Export types from `src/types/` for shared interfaces
+- Export shared interfaces from the module that owns them, then re-export public
+  contracts from `src/index.ts` when consumers need them.
 
 ### File Structure
 
@@ -144,13 +141,26 @@ Platform data lives in Postgres (source of truth). The server reads data via the
 src/
   index.ts          # Server entry point
   tools/            # MCP tool implementations
-  types/            # Shared TypeScript types
   utils/            # Helpers, validators
 ```
 
 ## MCP Tool Registry
 
-Full list of tools exposed by this server (88 total). Each is implemented in `src/tools/<name>.ts`.
+`npm run build:manifest` composes the real server in both modes and writes the
+authoritative names, descriptions, and schemas to `dist/manifest.json`. Read
+that artifact for current counts. The tables below are a workspace-mode
+reference, not an exhaustive registry.
+
+In management mode, `rename_workspace` patches only the name of an existing
+workspace by UUID. It preserves identity, history, and the running agent; it
+does not use deprovision/provision or require a restart.
+
+The management-only `promote_to_production` tool is bound to the exact vendored
+`contracts/promote-request.contract.json`, which required CI pins byte-for-byte
+to the SDK SSOT. Production uses only `CP_PROMOTE_PROD_API_TOKEN`; the generic
+CP admin bearer is never a production substitute. The tool defaults to a dry
+plan, requires `confirm:true` for every wet call, and accepts completion only
+from synchronous HTTP 200 exact immutable tenant-fleet evidence.
 
 ### Workspace Tools (9)
 | Tool | Description |
@@ -208,14 +218,13 @@ Full list of tools exposed by this server (88 total). Each is implemented in `sr
 | `get_config` | Get workspace runtime config as JSON |
 | `update_config` | Update workspace runtime config |
 
-### Memory Tools (9)
+### Memory Tools (8)
 | Tool | Description |
 |------|-------------|
 | `commit_memory` | Store a fact in workspace memory (LOCAL, TEAM, or GLOBAL scope) |
 | `search_memory` | Search workspace memories |
 | `delete_memory` | Delete a specific memory entry |
 | `session_search` | Search recent session activity and memory (FTS) |
-| `get_shared_context` | Get the shared-context blob for a workspace |
 | `memory_set` | Set a key-value memory entry with optional TTL |
 | `memory_get` | Read a single K/V memory entry |
 | `memory_list` | List all K/V memory entries for a workspace |
@@ -232,18 +241,6 @@ Full list of tools exposed by this server (88 total). Each is implemented in `sr
 | `list_available_plugins` | List plugins from registry filtered by workspace runtime |
 | `check_plugin_compatibility` | Preflight: which installed plugins would break if runtime changed? |
 
-### Channels Tools (8)
-| Tool | Description |
-|------|-------------|
-| `list_channel_adapters` | List available social channel adapters (Telegram, Slack, etc.) |
-| `list_channels` | List social channels connected to a workspace |
-| `add_channel` | Connect a social channel to a workspace |
-| `update_channel` | Update a channel's config, enabled state, or allowed users |
-| `remove_channel` | Remove a social channel from a workspace |
-| `send_channel_message` | Send an outbound message from a workspace to a channel |
-| `test_channel` | Send a test message to verify a channel connection |
-| `discover_channel_chats` | Auto-detect chat IDs for a given bot token |
-
 ### Schedules Tools (6)
 | Tool | Description |
 |------|-------------|
@@ -254,7 +251,7 @@ Full list of tools exposed by this server (88 total). Each is implemented in `sr
 | `run_schedule` | Fire a schedule manually, bypassing its cron expression |
 | `get_schedule_history` | Get past runs of a schedule — status, start/end, output |
 
-### Discovery Tools (14)
+### Discovery Tools (12)
 | Tool | Description |
 |------|-------------|
 | `list_peers` | List reachable peer workspaces (siblings, children, parent) |
@@ -269,8 +266,6 @@ Full list of tools exposed by this server (88 total). Each is implemented in `sr
 | `import_bundle` | Import a workspace from a bundle JSON object |
 | `get_canvas_viewport` | Get the current canvas viewport (x, y, zoom) |
 | `set_canvas_viewport` | Persist the canvas viewport (x, y, zoom) |
-| `expand_team` | Expand a workspace into a team of sub-workspaces |
-| `collapse_team` | Collapse a team back to a single workspace |
 
 ### Remote Agents Tools (4)
 | Tool | Description |
@@ -295,23 +290,13 @@ Inbox tools (`create_request` / `respond_request` / `list_inbox` /
 | `create_approval` | Create an approval request for a workspace | `POST /workspaces/:id/requests` (kind=approval) |
 | `get_workspace_approvals` | List requests raised by a specific workspace | `GET /workspaces/:id/requests` |
 
-## MCP Transport Gotchas
+## MCP Transport
 
-### STDIO Transport (Claude Desktop, CLI hosts)
-- **Windows CORS issue:** STDIO transport does not use HTTP, so CORS is not a factor — but some Claude Desktop configurations on Windows proxy through an HTTP layer that adds CORS headers. If tools fail silently on Windows, check for a proxy intercepting the STDIO stream.
-- **STDIO timeout:** STDIO mode has no built-in keepalive. If the MCP host is idle for >5 min, the platform may close the workspace. Send a `heartbeat` tool call every ~3 min from long-running sessions.
-- **Windows binary path:** On Windows, the MCP server executable path in Claude Desktop config must use backslashes or forward slashes with escaped backslashes (`\\`) in JSON. Use forward slashes for portability.
-
-### SSE Transport (web hosts)
-- **SSE vs STDIO:** SSE (Server-Sent Events) is used when the MCP host connects over HTTP. It supports streaming responses natively. STDIO is for local CLI tools.
-- **Heartbeat cleanup:** When using SSE, each tool call opens a new HTTP connection. Ensure the host sends a `close` event when the stream finishes to allow connection reuse. Unterminated SSE streams can hold connections open indefinitely.
-
-### `--self-update` Flag
-The server supports a `--self-update` flag for auto-updating:
-```bash
-mcp-server --self-update
-```
-**Proxy TLS note:** If the server is behind a corporate proxy, `--self-update` may fail with a TLS handshake error (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`). The proxy intercepts the TLS cert, and the Go/MJS HTTP client rejects it. Fix: set `NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.pem` in the environment, or disable `rejectUnauthorized` for the update endpoint only (do not disable globally).
+The executable implements stdio only (`StdioServerTransport`). It has no HTTP
+listener, port setting, transport selector, or command-line update/help parser.
+Keep stdout reserved for MCP frames; diagnostics use the repository logger on
+stderr. On Windows, use an absolute executable path with JSON-safe separators in
+the host configuration.
 
 ## Claude Desktop Configuration
 
@@ -328,18 +313,18 @@ Add this server to Claude Desktop via `claude_desktop_config.json`:
       "command": "node",
       "args": ["/absolute/path/to/dist/index.js"],
       "env": {
-        "MOLECULE_API_URL": "https://api.moleculesai.app",
-        "MOLECULE_API_KEY": "your-api-key-here",
-        "MCP_SERVER_PORT": "3000"
+        "MOLECULE_API_URL": "https://<slug>.moleculesai.app",
+        "MOLECULE_API_KEY": "your-tenant-api-key-here"
       }
     }
   }
 }
 ```
 
-To find the absolute path to the built binary:
+Build and verify that the configured entrypoint exists:
 ```bash
-node dist/index.js --help  # verify path
+npm run build
+test -f dist/index.js
 ```
 
 After editing the config, restart Claude Desktop (fully quit, then reopen) to load the new server.

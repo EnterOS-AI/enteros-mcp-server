@@ -76,3 +76,23 @@ export function runWithContext<R>(
 ): R {
   return _als.run(initial, fn);
 }
+
+/**
+ * The CALLER'S OWN workspace id — the "self" that a self-defaulting tool acts on
+ * when the caller omits workspace_id. Shared SSOT for the self-workspace lookup,
+ * imported by BOTH the management registry (tools/management/client.ts, which
+ * re-exports it) and the self-mode schedule tools (tools/schedules.ts).
+ *
+ * Reads MOLECULE_WORKSPACE_ID first (the concierge-specific alias the
+ * platform-MCP env injector sets — core#b59d243e), then falls back to
+ * WORKSPACE_ID, the UNIVERSAL workspace-id env every workspace container carries
+ * (workspace-server buildContainerEnv: `WORKSPACE_ID=<uuid>`). The fallback
+ * makes zero-config self-defaulting work on EVERY tenant image regardless of
+ * version skew: images predating the concierge env fix never set
+ * MOLECULE_WORKSPACE_ID, so without this fallback the SELF default failed closed
+ * with INVALID_ARGUMENTS on the live concierge (core#182 follow-up). WORKSPACE_ID
+ * is always present, so this is robust and not tenant-image-version-coupled.
+ */
+export function selfWorkspaceId(): string | undefined {
+  return process.env.MOLECULE_WORKSPACE_ID || process.env.WORKSPACE_ID;
+}

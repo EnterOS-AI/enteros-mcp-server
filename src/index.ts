@@ -12,7 +12,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { PLATFORM_URL, apiCall, platformGet, isApiError } from "./api.js";
+import { PLATFORM_URL, apiCall, platformGet, isApiError, authHeaders } from "./api.js";
+import { isSelfMode, isManagementMode } from "./mode.js";
 import { info as logInfo, warn as logWarn, error as logError } from "./utils/logger.js";
 import { registerWorkspaceTools } from "./tools/workspaces.js";
 import { registerAgentTools } from "./tools/agents.js";
@@ -20,9 +21,9 @@ import { registerSecretTools } from "./tools/secrets.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerMemoryTools } from "./tools/memory.js";
 import { registerPluginTools } from "./tools/plugins.js";
-import { registerChannelTools } from "./tools/channels.js";
 import { registerDelegationTools } from "./tools/delegation.js";
 import { registerScheduleTools } from "./tools/schedules.js";
+import { registerPluginUpdateTools } from "./tools/plugin_updates.js";
 import { registerApprovalTools } from "./tools/approvals.js";
 import { registerDiscoveryTools } from "./tools/discovery.js";
 import { registerRemoteAgentTools } from "./tools/remote_agents.js";
@@ -111,7 +112,6 @@ export {
   handleSearchMemory,
   handleDeleteMemory,
   handleSessionSearch,
-  handleGetSharedContext,
   handleSetKV,
   handleGetKV,
   handleListKV,
@@ -128,18 +128,6 @@ export {
   handleListAvailablePlugins,
   handleCheckPluginCompatibility,
 } from "./tools/plugins.js";
-
-export {
-  registerChannelTools,
-  handleListChannelAdapters,
-  handleListChannels,
-  handleAddChannel,
-  handleUpdateChannel,
-  handleRemoveChannel,
-  handleSendChannelMessage,
-  handleTestChannel,
-  handleDiscoverChannelChats,
-} from "./tools/channels.js";
 
 export {
   registerDelegationTools,
@@ -163,6 +151,15 @@ export {
   handleGetScheduleHistory,
 } from "./tools/schedules.js";
 
+// Plugin auto-update MANAGEMENT verbs — registered only in the management branch
+// of createServer() (org API key; core AdminAuth Tier-2a). Back the concierge's
+// plugin-auto-update schedule.
+export {
+  registerPluginUpdateTools,
+  handleCheckPluginUpdates,
+  handleApplyPluginUpdate,
+} from "./tools/plugin_updates.js";
+
 export {
   registerApprovalTools,
   handleListPendingApprovals,
@@ -185,8 +182,6 @@ export {
   handleImportBundle,
   handleGetViewport,
   handleSetViewport,
-  handleExpandTeam,
-  handleCollapseTeam,
 } from "./tools/discovery.js";
 
 export {
@@ -245,7 +240,15 @@ export {
   handleCancelRequest,
 } from "./tools/requests.js";
 export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
-export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured } from "./tools/management/cp_admin.js";
+export {
+  registerCpAdminTools,
+  handleListOrgs,
+  handleGetOrg,
+  handlePromoteToProduction,
+  PROMOTE_REQUEST_FIELDS,
+  cpUrl,
+  cpConfigured,
+} from "./tools/management/cp_admin.js";
 
 /**
  * Returns true when the server should run as the MANAGEMENT server (the
@@ -257,21 +260,32 @@ export { registerCpAdminTools, handleListOrgs, handleGetOrg, cpUrl, cpConfigured
  * resume_workspace) and the MCP SDK throws on duplicate tool names. The
  * management registry is the SAME codebase + conventions, not a fork — it's
  * a distinct mode of this one server (SSOT).
+ *
+ * isManagementMode() and isSelfMode() — the MOLECULE_MCP_MODE predicates — now
+ * live in the leaf module ./mode.ts (the SSOT for the mode selector) so BOTH
+ * this entry point and the low-level api.ts helper can read them without an
+ * index.ts ⇄ api.ts import cycle. Imported above for internal use in
+ * createServer()/main(); re-exported here so existing importers (tests, SDK
+ * consumers) keep resolving them from "./index.js".
  */
-export function isManagementMode(): boolean {
-  return (process.env.MOLECULE_MCP_MODE || "").toLowerCase() === "management";
-}
+export { isSelfMode, isManagementMode } from "./mode.js";
 
 export function createServer() {
   const srv = new McpServer({
-    name: isManagementMode() ? "molecule-platform" : "molecule-a2a",
+    name: isManagementMode()
+      ? "molecule-platform"
+      : isSelfMode()
+        ? "molecule-self"
+        : "molecule-a2a",
     version: "1.0.0",
   });
 
   if (isManagementMode()) {
     // Management registry — Org API Key, tenant host. CP-tier tools
-    // (list_orgs/get_org) are registered by registerManagementTools via the
-    // separate cp_admin module and gated on CP_ADMIN_API_TOKEN.
+    // (list_orgs/get_org/promote_to_production) are registered by
+    // registerManagementTools via the separate cp_admin module. Generic reads
+    // use CP_ADMIN_API_TOKEN; production promote uses only its dedicated
+    // CP_PROMOTE_PROD_API_TOKEN capability.
     registerManagementTools(srv);
     // Issue filing is useful from BOTH surfaces (an operator on the management
     // host and an agent on the workspace surface both observe bugs worth
@@ -280,6 +294,41 @@ export function createServer() {
     // Unified requests/inbox tools (RFC P2) — registered in BOTH modes, same
     // as create_issue: an agent on either surface can raise/answer requests.
     registerRequestTools(srv);
+    // Cross-workspace schedule management (org/tenant key). The management
+    // surface is the concierge/platform-agent acting on the org with the ORG
+    // API key, so it can manage schedules for ANY workspace in the org — the
+    // "org key manages scheduler for other workspaces" capability. This is SAFE
+    // to register here BECAUSE the schedule tools are already mode-aware: in
+    // NON-self mode workspace_id is REQUIRED (resolveWorkspaceId in
+    // tools/schedules.ts hard-fails an omitted id — never a silent self-default,
+    // so an operator can't accidentally retarget their own workspace), the tool
+    // SCHEMA advertises "Target workspace UUID (required)…the org/operator key
+    // can target", and authHeaders() sends the ORG key (api.ts), which core's
+    // WorkspaceAuth org-token branch admits for every workspace in the org.
+    // Distinct from self mode (below), where workspace_id self-defaults to the
+    // caller's own id under its per-workspace token.
+    registerScheduleTools(srv);
+    // Plugin auto-update verbs (check_plugin_updates / apply_plugin_update). The
+    // concierge's plugin-auto-update schedule lists drifted plugins and applies
+    // each pending update. MANAGEMENT-only: the core routes are AdminAuth-gated
+    // and api.ts::authHeaders() emits the org API key exclusively in management
+    // mode (#114), which core AdminAuth admits at Tier-2a (org-scoped token).
+    registerPluginUpdateTools(srv);
+    return srv;
+  }
+
+  if (isSelfMode()) {
+    // Self registry (audience=self) — the workspace acting on ITSELF with its
+    // OWN per-workspace token (fail-closed; see api.ts::authHeaders). Register
+    // ONLY the schedule tools: NO workspace/agent/secret/file/plugin/channel/
+    // delegation/etc. tools and NO management tools. The schedule handlers
+    // self-default workspace_id to the caller's own id (see tools/schedules.ts).
+    //
+    // Withholding every other tool is defence-in-depth: a workspace token would
+    // already 401 on those endpoints, but a self-mode agent must not even be
+    // offered a management/cross-workspace verb. This branch is BEFORE the
+    // workspace-ops fan-out so none of that surface is ever registered here.
+    registerScheduleTools(srv);
     return srv;
   }
 
@@ -289,7 +338,6 @@ export function createServer() {
   registerFileTools(srv);
   registerMemoryTools(srv);
   registerPluginTools(srv);
-  registerChannelTools(srv);
   registerDelegationTools(srv);
   registerScheduleTools(srv);
   registerApprovalTools(srv);
@@ -319,12 +367,42 @@ async function main() {
     });
   }
 
-  // Auth preflight (issue #36). If MOLECULE_API_KEY is set, fire one cheap
-  // auth-gated GET so a rejected key is surfaced LOUDLY at startup rather than
-  // silently 401-ing on every tool call. We reuse the discovery `/templates`
-  // path (same endpoint as the list_templates tool). We never crash on a bad
-  // key — the server still starts (e.g. so localhost no-auth tools work).
-  if (process.env.MOLECULE_API_KEY && process.env.MOLECULE_API_KEY.length > 0) {
+  // Auth preflight (issue #36). Surface a mis-configured credential LOUDLY at
+  // startup rather than letting every tool call silently 401. The credential —
+  // and therefore what we probe and how we label it — depends on the mode.
+  if (isSelfMode()) {
+    // SELF mode (audience=self): the bearer is the per-workspace token read
+    // per-call from disk (api.ts::authHeaders → readWorkspaceToken), NOT
+    // MOLECULE_API_KEY. authHeaders() is the SSOT for "what credential will
+    // actually be sent", so we ask it directly: an Authorization header means a
+    // self bearer is present.
+    //
+    // We deliberately do NOT fire the discovery `/templates` probe here: it is
+    // an org/discovery-tier endpoint that self mode does not even register, and
+    // a non-privileged workspace token may legitimately be denied it — a 403
+    // there would be a FALSE "rejected credential" alarm on every self startup.
+    // The workspace token's validity is instead proven fail-closed on the first
+    // real schedule call.
+    const hasSelfBearer = "Authorization" in authHeaders();
+    if (hasSelfBearer) {
+      logInfo(
+        `Self mode: authenticating with the per-workspace token (fail-closed, read per call). Requests to ${PLATFORM_URL} carry the workspace token, not MOLECULE_API_KEY.`,
+        { platformUrl: PLATFORM_URL, mode: "self" },
+      );
+    } else {
+      // Fail-closed: no token file (or empty) → every schedule call will 401.
+      // This is the loud self-mode surface for a missing credential.
+      logWarn(
+        `Self mode: no workspace token available — the auth-token file is missing or empty, so schedule tools will 401 until it is written. NOT falling back to MOLECULE_API_KEY (fail-closed by design).`,
+        { platformUrl: PLATFORM_URL, mode: "self" },
+      );
+    }
+  } else if (process.env.MOLECULE_API_KEY && process.env.MOLECULE_API_KEY.length > 0) {
+    // DEFAULT / management modes: the bearer is MOLECULE_API_KEY. Fire one cheap
+    // auth-gated GET (the discovery `/templates` path, same endpoint as the
+    // list_templates tool) so a rejected key is surfaced loudly. We never crash
+    // on a bad key — the server still starts (e.g. so localhost no-auth tools
+    // work).
     try {
       const res = await platformGet("/templates");
       if (isApiError(res)) {
@@ -363,8 +441,13 @@ async function main() {
       transport: "stdio",
       mode: "management",
     });
+  } else if (isSelfMode()) {
+    logInfo("Molecule AI SELF MCP server running on stdio (workspace token, self-scoped schedule tools)", {
+      transport: "stdio",
+      mode: "self",
+    });
   } else {
-    logInfo("Molecule AI MCP server running on stdio (96 tools available)", { transport: "stdio", toolCount: 96 });
+    logInfo("Molecule AI MCP server running on stdio (85 tools available)", { transport: "stdio", toolCount: 85 });
   }
 }
 

@@ -251,6 +251,46 @@ describe("integration#34: real MCP session over-the-wire (peer-ACL + GLOBAL memo
     expect(names).toEqual(expect.arrayContaining(["list_peers", "async_delegate", "commit_memory", "notify_user"]));
   });
 
+  it("does not register or dispatch tools that cross the HTTP boundary to retired Core routes", async () => {
+    const retired = [
+      { name: "expand_team", arguments: { workspace_id: "ws-root" } },
+      { name: "collapse_team", arguments: { workspace_id: "ws-root" } },
+      { name: "get_shared_context", arguments: { workspace_id: "ws-root" } },
+    ];
+    const forbiddenPaths = new Set([
+      "/workspaces/ws-root/expand",
+      "/workspaces/ws-root/collapse",
+      "/workspaces/ws-root/shared-context",
+    ]);
+
+    const { tools } = await client.listTools();
+    const registered = tools
+      .map((tool) => tool.name)
+      .filter((name) => retired.some((tool) => tool.name === name));
+    const requestOffset = platform.requests.length;
+    const dispatched: string[] = [];
+
+    for (const tool of retired) {
+      try {
+        const result = await client.callTool(tool);
+        if (!(result as { isError?: boolean }).isError) dispatched.push(tool.name);
+      } catch {
+        // Also acceptable: an unregistered tool may reject instead of returning isError.
+      }
+    }
+
+    const forbiddenRequests = platform.requests
+      .slice(requestOffset)
+      .filter((request) => forbiddenPaths.has(request.path))
+      .map((request) => `${request.method} ${request.path}`);
+
+    expect({ registered, dispatched, forbiddenRequests }).toEqual({
+      registered: [],
+      dispatched: [],
+      forbiddenRequests: [],
+    });
+  });
+
   // --- list_peers + peer-ACL ------------------------------------------------
 
   it("list_peers returns only ACL-reachable peers for the calling workspace", async () => {

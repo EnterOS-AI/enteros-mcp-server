@@ -2,9 +2,12 @@
 
 MCP server that exposes Molecule AI platform operations as tools for AI coding agents.
 
-## 87 Tools Available
+## Tool registries
 
-See the [full tool registry](CLAUDE.md#mcp-tool-registry) for all tools. Highlights:
+The authoritative tool list is generated from each real `createServer()` mode by
+`npm run build:manifest` and written to `dist/manifest.json`. Read that artifact
+for the current workspace and management tool names, schemas, and counts.
+The highlights below are intentionally not a hand-maintained full list.
 
 | Category | Tools |
 |----------|-------|
@@ -15,12 +18,17 @@ See the [full tool registry](CLAUDE.md#mcp-tool-registry) for all tools. Highlig
 | Files | list, read, write, delete, replace_all, get_config, update_config |
 | Memory | commit, search, delete (HMA scopes) + memory_set/get/list/delete (K/V) |
 | Plugins | list registry, list installed, install, uninstall, list sources, check compatibility |
-| Channels | list adapters, list, add, update, remove, send, test, discover chats |
 | Schedules | list, create, update, delete, run, get history |
 | Discovery | list peers, discover, check_access, list events, import/export, canvas viewport |
 | Requests / Inbox | `create_request`, `list_inbox`, `check_requests`, `get_request`, `respond_request`, `add_request_message`, `cancel_request` (unified Tasks + Approvals) |
 | Approvals *(deprecated)* | `list_pending_approvals`, `decide_approval`, `create_approval`, `get_workspace_approvals` — backward-compatible shims that route to the unified requests system (`kind='approval'`); prefer the Requests / Inbox tools |
 | Remote Agents | list (runtime=external), get state, setup command, check freshness |
+
+Native Core channel-management tools were retired with the channels-as-plugins
+cutover. Discover a `kind: channel` package with `list_plugin_registry` or
+`list_available_plugins`, then use `install_plugin` to connect it to a
+workspace. Provider credentials and setup belong to that plugin; this MCP
+server no longer calls Core's removed `/channels` routes.
 
 ## Setup
 
@@ -35,7 +43,7 @@ Add to your project's `.mcp.json`:
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
-        "MOLECULE_API_URL": "https://api.moleculesai.app",
+        "MOLECULE_API_URL": "https://<slug>.moleculesai.app",
         "MOLECULE_API_KEY": "your-api-key-here"
       }
     }
@@ -45,8 +53,13 @@ Add to your project's `.mcp.json`:
 
 `MOLECULE_API_KEY` is sent as `Authorization: Bearer <key>` on every platform
 request. It may be omitted only against a no-auth localhost dev platform
-(`MOLECULE_API_URL=http://localhost:8080`); any real deployment
-(`api.moleculesai.app`, staging) requires it or every call 401s.
+(`MOLECULE_API_URL=http://localhost:8080`); any real tenant host requires it or
+every call 401s. The control-plane domain (`api.moleculesai.app`) is not the
+single-tenant workspace API used by the default registry.
+
+`MOLECULE_API_KEY` is the workspace registry's tenant API bearer. It is
+distinct from `MOLECULE_ORG_API_KEY`, the full-tenant-admin Org API Key used by
+management mode.
 
 ### Cursor
 
@@ -76,9 +89,11 @@ MOLECULE_API_URL=http://localhost:8080 node mcp-server/dist/index.js
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MOLECULE_API_URL` | `http://localhost:8080` | Platform API base URL |
-| `MOLECULE_API_KEY` | — | API key for platform authentication |
-| `MCP_SERVER_PORT` | `3000` | Port (for HTTP/SSE transport) |
+| `MOLECULE_API_URL` | `http://localhost:8080` | Per-tenant workspace API base (`https://<slug>.moleculesai.app` in SaaS) |
+| `MOLECULE_API_KEY` | — | Tenant API bearer; optional only for a no-auth localhost stack |
+
+The executable implements stdio only (`StdioServerTransport`). It does not open
+an HTTP listener or parse transport/port CLI flags.
 
 ## Quick Start
 
@@ -115,7 +130,7 @@ because several tool names overlap).
 
 | Group | Tools |
 |-------|-------|
-| Workspaces | `list_workspaces`, `get_workspace`, `provision_workspace`, `deprovision_workspace`, `restart_workspace`, `pause_workspace`, `resume_workspace` |
+| Workspaces | `list_workspaces`, `get_workspace`, `rename_workspace`, `provision_workspace`, `deprovision_workspace`, `restart_workspace`, `pause_workspace`, `resume_workspace` |
 | Secrets | `set_workspace_secret`, `list_workspace_secrets`, `delete_workspace_secret`, `set_org_secret`, `list_org_secrets`, `delete_org_secret` |
 | Budget / billing | `set_workspace_budget`, `set_llm_billing_mode` |
 | Templates / org import | `list_org_templates`, `create_org_from_template`, `list_templates`, `import_template` |
@@ -123,9 +138,19 @@ because several tool names overlap).
 | Plugin governance | `get_org_plugin_allowlist`, `set_org_plugin_allowlist` |
 | Bundles | `export_bundle`, `import_bundle` |
 | Audit | `list_org_events`, `list_pending_approvals` *(deprecated shim → `/requests/pending?kind=approval`)* |
-| **CP-tier (gated)** | `list_orgs`, `get_org` |
+| Compute migration | `migrate_workspace_provider`, `get_workspace_migration_status` |
+| **CP-tier (gated)** | `list_orgs`, `get_org`, `promote_to_production` |
 
 Each tool's input schema, endpoint, and request body are derived from the
+canonical tenant implementation. For example, `rename_workspace` sends only
+`{ "name": "Personal Brand" }` to `PATCH /workspaces/:id`. Resolve the UUID
+with `list_workspaces` first; names can repeat under different parents. A
+rename preserves the UUID, files, history, configuration, and running agent.
+Blank names are rejected, and a sibling name collision returns a conflict
+instead of silently picking another name. The default workspace registry
+offers the same operation through `update_workspace`.
+
+The authoritative routes and validation live in the
 canonical tenant router/handler source
 (`molecule-core/workspace-server/internal/router/router.go` +
 `internal/handlers/*`) — the same source the management OpenAPI is being
@@ -144,8 +169,8 @@ X-Molecule-Org-Id: ${MOLECULE_ORG_ID}
 
 The Org API Key is `org_api_tokens` (sha256-hashed, prefixed, revocable). It
 satisfies the tenant `AdminAuth` / `WorkspaceAuth` gates, and the tenant
-`TenantGuard` requires the `X-Molecule-Org-Id` header to match the EC2 the
-request lands on.
+`TenantGuard` requires the `X-Molecule-Org-Id` header to match the tenant
+selected by the routed host.
 
 > **⚠ Security — the Org API Key is full-tenant-admin AND self-minting.** It
 > authorizes the entire tenant-admin surface of its own org (workspaces,
@@ -155,7 +180,7 @@ request lands on.
 > per-workspace scoping is a planned follow-up. Treat `MOLECULE_ORG_API_KEY`
 > as a root credential — store it in a secrets manager, never in source.
 
-### CP-tier caveat (`list_orgs` / `get_org`)
+### CP-tier caveat and production promote capability
 
 The Org API Key is a **tenant** credential and **cannot reach the control
 plane** — CP `/api/v1/orgs/*` (org create/delete/export/members/billing)
@@ -166,6 +191,21 @@ a silent failure) and make no network call. Member/billing management tools
 need the same CP session tier and are intentionally out of scope for the
 org-key MCP.
 
+`promote_to_production` is a synchronous, tenant-fleet-only wrapper over
+`POST /cp/admin/promote`. Its exact request fields are `env`, `components`,
+`dry_run`, and `confirm`; the vendored
+`contracts/promote-request.contract.json` is byte-gated in required CI against
+the canonical SDK contract. `dry_run` defaults to `true` and is accepted only
+with exact non-mutating immutable-fleet evidence. Every wet rollout requires
+`confirm:true` as explicit operator GO and is accepted only on HTTP 200 with
+`ok:true`, `complete:true`, and exact full-fleet coverage.
+
+Production calls use only `CP_PROMOTE_PROD_API_TOKEN`. The generic CP admin
+bearer is never a production promote substitute, and the production capability
+is never sent to staging. Runtime wheels, template images, canvas, the app,
+control plane, and tenant proxy remain owned by their repository CI-on-merge
+workflows; this tool neither deploys nor reports completion for them.
+
 ### Management env vars
 
 | Variable | Required | Description |
@@ -175,8 +215,10 @@ org-key MCP.
 | `MOLECULE_ORG_API_KEY` | Yes | Org API Key (full-tenant-admin; see security note) |
 | `MOLECULE_ORG_ID` | Yes | Org id for the `X-Molecule-Org-Id` tenant-guard header |
 | `MOLECULE_ORG_SLUG` | No | Optional `X-Molecule-Org-Slug` header |
-| `CP_ADMIN_API_TOKEN` | No | CP admin bearer — required only for the CP-tier `list_orgs` / `get_org` tools |
+| `CP_ADMIN_API_TOKEN` | No | Generic CP admin bearer for CP reads, provider migration, and staging promote; never used for production promote |
+| `CP_PROMOTE_PROD_API_TOKEN` | No | Dedicated production `POST /cp/admin/promote` capability; required for production plans and wet rollouts |
 | `MOLECULE_CP_URL` | No | Control-plane base URL (default `https://api.moleculesai.app`) |
+| `MOLECULE_CP_STAGING_URL` | No | Staging control-plane base when `env=staging` and `MOLECULE_CP_URL` is unset (default `https://staging-api.moleculesai.app`) |
 
 ### Management host config
 
@@ -207,4 +249,5 @@ pip install molecule-ai-sdk
 WORKSPACE_ID=... PLATFORM_URL=... python3 -c "from molecule_external_workspace import RemoteAgentClient; ..."
 ```
 
-See the full tool registry in `CLAUDE.md` for all 87 tools.
+Run `npm run build:manifest` and inspect `dist/manifest.json` for the exact,
+per-mode registry and input schemas.

@@ -1,10 +1,10 @@
 /**
  * Management-registry HTTP client.
  *
- * The legacy workspace-ops surface (src/api.ts) talks to ONE tenant whose
- * workspace-server is fail-open / co-located, so it sends no Authorization
- * header. The management registry is different: it targets a HARDENED remote
- * tenant host and must present the Org API Key on every call.
+ * Both registries target one per-tenant workspace host. The workspace surface
+ * sends `MOLECULE_API_KEY` when configured; omission is supported only by a
+ * no-auth localhost stack. The management registry requires
+ * `MOLECULE_ORG_API_KEY` (the full-tenant-admin Org API Key) on every call.
  *
  * Auth model (see PLATFORM-MANAGEMENT-API.md §1 / §5 and the tenant router
  * `internal/router/router.go`):
@@ -13,7 +13,7 @@
  *     prefixed, revocable) and is FULL TENANT-ADMIN for its own org. It
  *     satisfies the tenant `AdminAuth` and `WorkspaceAuth` gates.
  *   - `X-Molecule-Org-Id: ${MOLECULE_ORG_ID}` — the tenant `TenantGuard`
- *     rejects any request whose org id doesn't match the EC2 it lands on.
+ *     rejects a request whose org id does not match the routed tenant.
  *
  * SECURITY: the Org API Key is full-tenant-admin AND self-minting (it can
  * mint/revoke more org tokens via /org/tokens). A management MCP holding one
@@ -51,25 +51,12 @@ export function defaultOrgId(): string | undefined {
   return process.env.MOLECULE_ORG_ID;
 }
 
-/**
- * The CALLER'S OWN workspace id — the "self" a self-defaulting management tool
- * (install_plugin / list_available_plugins / get_conversation_history) acts on
- * when the caller omits workspace_id.
- *
- * SSOT for the self-workspace lookup. Reads MOLECULE_WORKSPACE_ID first (the
- * concierge-specific alias the platform-MCP env injector sets — core#b59d243e),
- * then falls back to WORKSPACE_ID, the UNIVERSAL workspace-id env every
- * workspace container carries (workspace-server buildContainerEnv:
- * `WORKSPACE_ID=<uuid>`). The fallback makes zero-config self-install work on
- * EVERY tenant image regardless of version skew: images predating the concierge
- * env fix (e.g. molecule-tenant:staging-40779bd / f5071e5) never set
- * MOLECULE_WORKSPACE_ID, so without this fallback the SELF default failed closed
- * with INVALID_ARGUMENTS on the live concierge (core#182 follow-up). WORKSPACE_ID
- * is always present, so this is robust and not tenant-image-version-coupled.
- */
-export function selfWorkspaceId(): string | undefined {
-  return process.env.MOLECULE_WORKSPACE_ID || process.env.WORKSPACE_ID;
-}
+// The CALLER'S OWN workspace id — the "self" a self-defaulting management tool
+// (install_plugin / list_available_plugins / get_conversation_history) acts on
+// when the caller omits workspace_id. LIFTED to the shared utils/context.ts so
+// the self-mode schedule tools reuse the exact same lookup (single SSOT, not a
+// duplicate). Re-exported here so existing importers (./index.js) are unchanged.
+export { selfWorkspaceId } from "../../utils/context.js";
 
 /**
  * Build the auth headers for a tenant-host request. Returns an ApiError
@@ -88,15 +75,18 @@ function managementHeaders(): Record<string, string> | ApiError {
   }
   const orgId = process.env.MOLECULE_ORG_ID;
   const slug = process.env.MOLECULE_ORG_SLUG;
-  if (!orgId && !slug) {
-    return {
-      error: "AUTH_ERROR",
-      detail:
-        "MOLECULE_ORG_ID or MOLECULE_ORG_SLUG is required. The tenant host " +
-        "needs a routing header so the edge / TenantGuard can route and " +
-        "authorize against the correct org.",
-    };
-  }
+  // The X-Molecule-Org-* routing header disambiguates WHICH tenant a request is
+  // for at the domain edge (`<slug>.moleculesai.app` → that tenant's
+  // TenantGuard). On a SELF-HOST / local stack there is no edge and no
+  // multi-tenancy: MOLECULE_URL points DIRECTLY at the single-tenant
+  // workspace-server, the org has no CP-assigned id/slug (`/org/identity` is
+  // empty, the workspace row's org_id is null by design — core#3496), and the
+  // Org API Key alone identifies the org. SaaS ALWAYS sets MOLECULE_ORG_ID (the
+  // CP provisioner injects it), so `both-empty ⟺ self-host`. In that case we
+  // proceed BEARER-ONLY (no routing header) instead of failing closed — the
+  // single-tenant host resolves the org from the credential. Hard-failing here
+  // was the self-host management-tool fail-close (concierge could not
+  // provision/list on a directly-addressed tenant host).
   const h: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${tok}`,

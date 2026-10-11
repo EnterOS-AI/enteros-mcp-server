@@ -57,6 +57,7 @@ import {
   handleListAvailablePlugins as mgmtListAvailablePlugins,
   handleListWorkspaces as mgmtListWorkspaces,
   handleGetWorkspace,
+  handleRenameWorkspace,
   handleRestartWorkspace,
   handlePauseWorkspace,
   handleResumeWorkspace,
@@ -66,10 +67,21 @@ import {
   handleGetConversationHistory,
 } from "../tools/management/index.js";
 import {
-  handleRecreateWorkspace,
   handleMigrateWorkspaceProvider,
   handleGetWorkspaceMigrationStatus,
 } from "../tools/management/cp_admin.js";
+import {
+  handleListSchedules,
+  handleCreateSchedule,
+} from "../tools/schedules.js";
+import {
+  handleCheckPluginUpdates,
+  handleApplyPluginUpdate,
+} from "../tools/plugin_updates.js";
+// PLATFORM_URL is a module-load constant (api.ts) — the schedule handlers' base;
+// import it so the URL assertion matches the frozen value (same env precedence as
+// managementUrl(): MOLECULE_API_URL||MOLECULE_URL||PLATFORM_URL||localhost:8080).
+import { PLATFORM_URL } from "../api.js";
 
 const ORG_KEY = "org_testkey_abcdef";
 const ORG_ID = "org-11111111";
@@ -145,14 +157,21 @@ describe("management auth model", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
-  it("returns AUTH_ERROR (no fetch) when org routing header is absent", async () => {
+  it("self-host (no org id/slug): proceeds BEARER-ONLY, no X-Molecule-Org-* header", async () => {
+    // both-empty ⟺ self-host (SaaS always sets MOLECULE_ORG_ID). A directly-
+    // addressed single-tenant host needs no edge-routing header, so instead of
+    // failing closed the client proceeds with the Org API Key alone.
     delete process.env.MOLECULE_ORG_ID;
     delete process.env.MOLECULE_ORG_SLUG;
-    const f = mockFetch({});
+    const f = mockFetch([{ id: "w1" }]);
     global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleListWorkspaceSecrets({ workspace_id: "w1" }));
-    expect(res.error).toBe("AUTH_ERROR");
-    expect(f).not.toHaveBeenCalled();
+    const res = parsed(await mgmtListWorkspaces());
+    expect(res.error).toBeUndefined();
+    expect(f).toHaveBeenCalled();
+    const h = headersOf(lastCall(f).init);
+    expect(h.Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(h["X-Molecule-Org-Id"]).toBeUndefined();
+    expect(h["X-Molecule-Org-Slug"]).toBeUndefined();
   });
 
   it("maps a 401 to AUTH_ERROR", async () => {
@@ -253,6 +272,38 @@ describe("org secret tools", () => {
 });
 
 describe("workspace lifecycle tools", () => {
+  it("renames in place with the org credential and only the name field", async () => {
+    const workspace_id = "aaaaaaaa-0000-4000-8000-000000000001";
+    const f = mockFetch({ status: "updated", workspace_id, name: "Personal Brand" });
+    global.fetch = f as unknown as typeof fetch;
+    const result = await handleRenameWorkspace({ workspace_id, name: " Personal Brand ", tier: 4 });
+    expect(f).toHaveBeenCalledTimes(1);
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${HOST}/workspaces/${workspace_id}`);
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ name: "Personal Brand" });
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(headersOf(init)["X-Molecule-Org-Id"]).toBe(ORG_ID);
+    expect(parsed(result)).toEqual({ status: "updated", workspace_id, name: "Personal Brand" });
+  });
+
+  it.each([undefined, null, "", "   ", 123])("rejects invalid rename name %p before HTTP", async (name) => {
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    await expect(handleRenameWorkspace({ workspace_id: "aaaaaaaa-0000-4000-8000-000000000001", name })).rejects.toThrow();
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing org credential before renaming", async () => {
+    delete process.env.MOLECULE_ORG_API_KEY;
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const result = await handleRenameWorkspace({ workspace_id: "aaaaaaaa-0000-4000-8000-000000000001", name: "Personal Brand" });
+    expect(result.isError).toBe(true);
+    expect(parsed(result).error).toBe("AUTH_ERROR");
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("provision_workspace POSTs to /workspaces with the supplied fields", async () => {
     const f = mockFetch({ id: "w-new" });
     global.fetch = f as unknown as typeof fetch;
@@ -618,170 +669,6 @@ describe("CP-tier tools (separated, gated)", () => {
   });
 });
 
-describe("recreate_workspace (CP-tier hard redeploy)", () => {
-  const CP = "https://api.moleculesai.app";
-
-  beforeEach(() => {
-    process.env.CP_ADMIN_API_TOKEN = "cp_admin_token";
-    process.env.MOLECULE_CP_URL = CP;
-    process.env.MOLECULE_ORG_SLUG = "agents-team";
-  });
-
-  it("returns CP_TIER_NOT_CONFIGURED and makes no call when CP token absent", async () => {
-    delete process.env.CP_ADMIN_API_TOKEN;
-    const f = mockFetch({});
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ runtime: "claude-code" }));
-    expect(res.error).toBe("CP_TIER_NOT_CONFIGURED");
-    expect(f).not.toHaveBeenCalled();
-  });
-
-  it("POSTs runtime+recreate to the slug-keyed redeploy endpoint with the admin bearer", async () => {
-    const f = mockFetch({ ok: true, result: { recreated: ["ws-1"] } });
-    global.fetch = f as unknown as typeof fetch;
-    await handleRecreateWorkspace({ runtime: "claude-code", recreate: true });
-    const { url, init } = lastCall(f);
-    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
-    expect(init.method).toBe("POST");
-    expect(headersOf(init).Authorization).toBe("Bearer cp_admin_token");
-    const sentBody = JSON.parse(init.body as string);
-    expect(sentBody.runtime).toBe("claude-code");
-    expect(sentBody.recreate).toBe(true);
-    expect(sentBody.dry_run).toBe(false);
-    // actor is always present for the audit trail (falls back to the tenant
-    // identity when not passed explicitly).
-    expect(sentBody.actor).toBeDefined();
-  });
-
-  it("defaults recreate to true and dry_run to false", async () => {
-    const f = mockFetch({ ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    await handleRecreateWorkspace({ runtime: "codex" });
-    const body = JSON.parse(lastCall(f).init.body as string);
-    expect(body.recreate).toBe(true);
-    expect(body.dry_run).toBe(false);
-  });
-
-  it("honors an explicit slug arg over MOLECULE_ORG_SLUG and url-encodes it", async () => {
-    const f = mockFetch({ ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    await handleRecreateWorkspace({ runtime: "codex", slug: "other/team" });
-    expect(lastCall(f).url).toBe(`${CP}/api/v1/admin/tenants/other%2Fteam/workspaces/redeploy`);
-  });
-
-  it("derives the runtime from workspace_id via the tenant API when runtime omitted", async () => {
-    // First fetch = tenant GET /workspaces/:id (org-key host), second =
-    // the CP redeploy POST. mockFetch returns the same payload for both,
-    // so make it the workspace row carrying a runtime.
-    const f = mockFetch({ id: "w1", runtime: "hermes", ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    await handleRecreateWorkspace({ workspace_id: "w1" });
-    // The LAST call is the CP redeploy; assert it carried the resolved runtime.
-    const { url, init } = lastCall(f);
-    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
-    expect(JSON.parse(init.body as string).runtime).toBe("hermes");
-  });
-
-  it("FAILS CLOSED: aborts (recreates NOTHING) when workspace_id is given but its runtime can't be resolved and no explicit runtime", async () => {
-    // Lookup returns a workspace row with NO runtime field → unresolvable.
-    // The tool must NOT fall back to a tenant-wide all-runtimes recreate.
-    const f = mockFetch({ id: "w1", ok: true }); // no runtime field
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ workspace_id: "w1" }));
-    expect(res.error).toBe("RUNTIME_UNRESOLVED");
-    expect(res.detail).toMatch(/refusing to fall back to a tenant-wide/i);
-    // Exactly ONE fetch happened — the tenant lookup. The CP redeploy POST
-    // was NEVER issued (nothing was recreated).
-    expect(f).toHaveBeenCalledTimes(1);
-    const onlyCallUrl = f.mock.calls[0][0] as string;
-    expect(onlyCallUrl).not.toMatch(/\/redeploy$/);
-  });
-
-  it("FAILS CLOSED: aborts an unscoped recreate (no runtime, no workspace_id, no all_runtimes)", async () => {
-    const f = mockFetch({ ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({}));
-    expect(res.error).toBe("SCOPE_REQUIRED");
-    expect(f).not.toHaveBeenCalled();
-  });
-
-  it("allows an EXPLICIT tenant-wide recreate via all_runtimes:true (runtime:'')", async () => {
-    const f = mockFetch({ ok: true, result: { recreated: [] } });
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ all_runtimes: true }));
-    const { url, init } = lastCall(f);
-    expect(url).toBe(`${CP}/api/v1/admin/tenants/agents-team/workspaces/redeploy`);
-    expect(JSON.parse(init.body as string).runtime).toBe("");
-    expect(res.ok).toBe(true);
-    expect(res.runtime_source).toBe("all_runtimes");
-  });
-
-  it("AUDIT: forwards actor + reason in the redeploy body and echoes them in the result", async () => {
-    const f = mockFetch({ ok: true, result: {} });
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(
-      await handleRecreateWorkspace({
-        runtime: "claude-code",
-        actor: "devops-engineer",
-        reason: "onto promoted pin per cp#245",
-      }),
-    );
-    const body = JSON.parse(lastCall(f).init.body as string);
-    expect(body.actor).toBe("devops-engineer");
-    expect(body.reason).toBe("onto promoted pin per cp#245");
-    // The result also surfaces the audit fields for attribution.
-    expect(res.actor).toBe("devops-engineer");
-    expect(res.reason).toBe("onto promoted pin per cp#245");
-  });
-
-  it("AUDIT: actor is never anonymous — falls back to MOLECULE_AUDIT_ACTOR when not passed", async () => {
-    process.env.MOLECULE_AUDIT_ACTOR = "cr2-fleet-bot";
-    const f = mockFetch({ ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    await handleRecreateWorkspace({ runtime: "codex" });
-    expect(JSON.parse(lastCall(f).init.body as string).actor).toBe("cr2-fleet-bot");
-  });
-
-  it("FAILS CLOSED: aborts when actor is unresolvable (no actor arg, no MOLECULE_AUDIT_ACTOR, no MOLECULE_ORG_SLUG)", async () => {
-    delete process.env.MOLECULE_ORG_SLUG;
-    delete process.env.MOLECULE_AUDIT_ACTOR;
-    const f = mockFetch({ ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "some-org" }));
-    expect(res.error).toBe("INVALID_ARGUMENTS");
-    expect(res.detail).toMatch(/audit actor is required/i);
-    // No CP call made — the op is aborted before reaching the redeploy endpoint.
-    expect(f).not.toHaveBeenCalled();
-  });
-
-  it("FAILS CLOSED: aborts when actor is explicitly 'unknown' (mcp-server#48)", async () => {
-    delete process.env.MOLECULE_ORG_SLUG;
-    delete process.env.MOLECULE_AUDIT_ACTOR;
-    const f = mockFetch({ ok: true });
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "some-org", actor: "unknown" }));
-    expect(res.error).toBe("INVALID_ARGUMENTS");
-    expect(res.detail).toMatch(/audit actor is required/i);
-    expect(f).not.toHaveBeenCalled();
-  });
-
-  it("returns INVALID_ARGUMENTS (no CP call) when no slug is resolvable", async () => {
-    delete process.env.MOLECULE_ORG_SLUG;
-    const f = mockFetch({});
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ runtime: "codex" }));
-    expect(res.error).toBe("INVALID_ARGUMENTS");
-    expect(f).not.toHaveBeenCalled();
-  });
-
-  it("surfaces REDEPLOY_FAILED on an upstream CP error", async () => {
-    const f = mockFetch({ error: "tenant not found" }, false, 404);
-    global.fetch = f as unknown as typeof fetch;
-    const res = parsed(await handleRecreateWorkspace({ runtime: "codex", slug: "ghost" }));
-    expect(res.error).toBe("REDEPLOY_FAILED");
-  });
-});
-
 describe("migrate_workspace_provider (CP-tier cross-cloud migration)", () => {
   const CP = "https://api.moleculesai.app";
 
@@ -970,9 +857,9 @@ describe("registration + mode", () => {
     registerManagementTools(srv as never);
     const names = srv.registeredToolNames;
     for (const expected of [
-      "list_orgs", "get_org", "recreate_workspace",
+      "list_orgs", "get_org", "promote_to_production",
       "migrate_workspace_provider", "get_workspace_migration_status",
-      "list_workspaces", "get_workspace", "provision_workspace", "deprovision_workspace",
+      "list_workspaces", "get_workspace", "rename_workspace", "provision_workspace", "deprovision_workspace",
       "restart_workspace", "pause_workspace", "resume_workspace",
       "set_workspace_secret", "list_workspace_secrets", "delete_workspace_secret",
       "set_org_secret", "list_org_secrets", "delete_org_secret",
@@ -987,28 +874,145 @@ describe("registration + mode", () => {
     ]) {
       expect(names).toContain(expected);
     }
+    expect(names).not.toContain("recreate_workspace");
     // No duplicate registrations.
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("createServer in management mode registers only the management surface", () => {
+  it("createServer in management mode registers the management surface + cross-workspace schedule tools", () => {
     process.env.MOLECULE_MCP_MODE = "management";
     // The mock McpServer throws on duplicate names (like the real SDK), so
     // simply composing the full management-mode server here is the
     // regression gate against cross-registry tool-name collisions.
-    const srv = createServer() as unknown as { registeredToolNames: string[] };
+    const srv = createServer() as unknown as { registeredToolNames: string[]; name?: string };
     expect(srv.registeredToolNames).toContain("provision_workspace");
     // The unified request tools come from requests.ts (BOTH modes) — the
     // management registry must NOT duplicate them.
     expect(srv.registeredToolNames).toContain("create_request");
     expect(srv.registeredToolNames).toContain("create_approval");
+    // Cross-workspace schedule management: the concierge/platform-agent (ORG key)
+    // manages schedules for ANY workspace in the org. All 6 verbs must be offered
+    // here (they require an explicit target workspace_id in non-self mode — see
+    // resolveWorkspaceId + the "requires an explicit workspace_id" test below).
+    for (const verb of [
+      "create_schedule", "update_schedule", "delete_schedule",
+      "list_schedules", "run_schedule", "get_schedule_history",
+    ]) {
+      expect(srv.registeredToolNames).toContain(verb);
+    }
     // Legacy-only tools (chat_with_agent) must NOT be present in mgmt mode.
     expect(srv.registeredToolNames).not.toContain("chat_with_agent");
+    // No duplicate registrations across the composed registries.
+    expect(new Set(srv.registeredToolNames).size).toBe(srv.registeredToolNames.length);
   });
 
   it("createServer in workspace mode composes without tool-name collisions", () => {
     process.env.MOLECULE_MCP_MODE = "";
     expect(() => createServer()).not.toThrow();
+  });
+});
+
+// Cross-workspace schedule management via the ORG key (concierge/platform-agent).
+// SECURITY CRUX: in management (non-self) mode the schedule tools must REQUIRE an
+// explicit target workspace_id — a silent self-default would let an operator
+// accidentally retarget a wrong workspace. With an explicit id, the request must
+// carry the ORG key so core's WorkspaceAuth admits it for any workspace in the org.
+describe("management-mode schedule tools (cross-workspace, org key)", () => {
+  beforeEach(() => {
+    process.env.MOLECULE_MCP_MODE = "management";
+    // Ensure NO ambient self id can leak a default target.
+    delete process.env.MOLECULE_WORKSPACE_ID;
+    delete process.env.WORKSPACE_ID;
+  });
+
+  it("REQUIRES workspace_id — an omitted id is INVALID_ARGUMENTS with no fetch (never a silent self-default)", async () => {
+    const f = mockFetch({ schedules: [] });
+    global.fetch = f as unknown as typeof fetch;
+    const res = await handleListSchedules({});
+    expect(parsed(res).error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("with an explicit target workspace_id, targets /workspaces/<target>/schedules under the ORG-key Bearer", async () => {
+    const f = mockFetch({ id: "sch-1" });
+    global.fetch = f as unknown as typeof fetch;
+    await handleCreateSchedule({
+      workspace_id: "w-other",
+      name: "daily",
+      cron: "0 9 * * *",
+      prompt: "summarize",
+    } as never);
+    const { url, init } = lastCall(f);
+    // Cross-workspace target in the path; base is the schedule handlers' PLATFORM_URL
+    // (== the tenant host in prod, where MOLECULE_API_URL is set before module load).
+    expect(url).toBe(`${PLATFORM_URL}/workspaces/w-other/schedules`);
+    // Authed by the ORG key (non-self authHeaders), which core's WorkspaceAuth
+    // admits for every workspace in the org.
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+  });
+});
+
+// Plugin auto-update MANAGEMENT verbs (concierge plugin-auto-update schedule).
+// Both hit the AdminAuth-gated core routes under the ORG-key Bearer (api.ts
+// authHeaders in management mode). check is read-only (GET); apply is a
+// side-effecting POST keyed by the pending-update queue id.
+describe("plugin auto-update tools (management, org key)", () => {
+  beforeEach(() => {
+    process.env.MOLECULE_MCP_MODE = "management";
+  });
+
+  it("check_plugin_updates GETs /admin/plugin-updates-pending under the ORG-key Bearer (read-only)", async () => {
+    const rows = [
+      {
+        id: "q-1",
+        workspace_id: "w-1",
+        plugin_name: "concierge",
+        tracked_ref: "tag:v1.2.0",
+        current_sha: "aaaa",
+        latest_sha: "bbbb",
+        status: "pending",
+      },
+    ];
+    const f = mockFetch(rows);
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleCheckPluginUpdates());
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${PLATFORM_URL}/admin/plugin-updates-pending`);
+    expect(init.method).toBe("GET");
+    const h = headersOf(init);
+    expect(h.Authorization).toBe(`Bearer ${ORG_KEY}`);
+    expect(h["X-Molecule-Org-Id"]).toBe(ORG_ID);
+    expect(res[0].id).toBe("q-1");
+  });
+
+  it("apply_plugin_update POSTs /admin/plugin-updates/:id/apply under the ORG-key Bearer", async () => {
+    const f = mockFetch({ status: "applied", workspace_id: "w-1", restarting: true });
+    global.fetch = f as unknown as typeof fetch;
+    await handleApplyPluginUpdate({ id: "q-1" });
+    const { url, init } = lastCall(f);
+    expect(url).toBe(`${PLATFORM_URL}/admin/plugin-updates/q-1/apply`);
+    expect(init.method).toBe("POST");
+    expect(headersOf(init).Authorization).toBe(`Bearer ${ORG_KEY}`);
+  });
+
+  it("apply_plugin_update fails closed (INVALID_ARGUMENTS, no fetch) on an empty id", async () => {
+    const f = mockFetch({});
+    global.fetch = f as unknown as typeof fetch;
+    const res = parsed(await handleApplyPluginUpdate({ id: "" }));
+    expect(res.error).toBe("INVALID_ARGUMENTS");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  // NEGATIVE CONTROL: pin the URL + method so a wrong route/verb regresses. The
+  // check verb is read-only — it must never POST, and must not hit the apply path.
+  it("NEGATIVE CONTROL: check_plugin_updates does not POST and does not hit the apply route", async () => {
+    const f = mockFetch([]);
+    global.fetch = f as unknown as typeof fetch;
+    await handleCheckPluginUpdates();
+    const { url, init } = lastCall(f);
+    expect(init.method).not.toBe("POST");
+    expect(url).not.toContain("/apply");
+    expect(url).toBe(`${PLATFORM_URL}/admin/plugin-updates-pending`);
   });
 });
 

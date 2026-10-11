@@ -56,16 +56,6 @@ const SetViewportSchema = z.object({
 });
 export type SetViewportParams = z.infer<typeof SetViewportSchema>;
 
-const ExpandTeamSchema = z.object({
-  workspace_id: z.string().describe("Workspace ID to expand"),
-});
-export type ExpandTeamParams = z.infer<typeof ExpandTeamSchema>;
-
-const CollapseTeamSchema = z.object({
-  workspace_id: z.string().describe("Workspace ID to collapse"),
-});
-export type CollapseTeamParams = z.infer<typeof CollapseTeamSchema>;
-
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -137,18 +127,6 @@ export async function handleGetViewport(): Promise<ReturnType<typeof toMcpResult
 export async function handleSetViewport(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, SetViewportSchema);
   const data = await apiCall("PUT", "/canvas/viewport", params);
-  return toMcpResult(data);
-}
-
-export async function handleExpandTeam(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
-  const params = validate(args, ExpandTeamSchema);
-  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/expand`, {});
-  return toMcpResult(data);
-}
-
-export async function handleCollapseTeam(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
-  const params = validate(args, CollapseTeamSchema);
-  const data = await apiCall("POST", `/workspaces/${params.workspace_id}/collapse`, {});
   return toMcpResult(data);
 }
 
@@ -239,19 +217,5 @@ export function registerDiscoveryTools(srv: McpServer) {
       zoom: z.number().describe("Zoom level"),
     },
     handleSetViewport,
-  );
-
-  srv.tool(
-    "expand_team",
-    "Expand a workspace into a team of sub-workspaces",
-    { workspace_id: z.string().describe("Workspace ID to expand") },
-    handleExpandTeam
-  );
-
-  srv.tool(
-    "collapse_team",
-    "Collapse a team back to a single workspace",
-    { workspace_id: z.string().describe("Workspace ID to collapse") },
-    handleCollapseTeam
   );
 }

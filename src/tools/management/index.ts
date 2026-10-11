@@ -4,8 +4,9 @@
  *
  * Auth: Org API Key (full tenant-admin) against the PER-ORG tenant host. See
  * ./client.ts for the auth model and the security caveat (org key = tenant
- * root, self-minting). The few CP-tier tools (list_orgs / get_org) live in
- * ./cp_admin.ts because the Org API Key CANNOT reach the control plane.
+ * root, self-minting). The CP-tier tools (list_orgs / get_org /
+ * promote_to_production / provider migration) live in ./cp_admin.ts because
+ * the Org API Key CANNOT reach the control plane.
  *
  * Every endpoint + request body below is derived from the canonical tenant
  * router/handler source (molecule-core/workspace-server/internal/router/
@@ -27,6 +28,11 @@ import { registerCpAdminTools } from "./cp_admin.js";
 
 const GetWorkspaceSchema = z.object({
   workspace_id: z.string().describe("Workspace UUID"),
+});
+
+const RenameWorkspaceSchema = z.object({
+  workspace_id: z.string().uuid().describe("Workspace UUID from list_workspaces"),
+  name: z.string().trim().min(1).describe("New workspace display name"),
 });
 
 const ProvisionWorkspaceSchema = z.object({
@@ -338,6 +344,13 @@ export async function handleListWorkspaces() {
 export async function handleGetWorkspace(args: unknown) {
   const p = validate(args, GetWorkspaceSchema);
   return toMcpResult(await mgmtGet(`/workspaces/${encodeURIComponent(p.workspace_id)}`));
+}
+
+export async function handleRenameWorkspace(args: unknown) {
+  const { workspace_id, name } = validate(args, RenameWorkspaceSchema);
+  return toMcpResult(
+    await mgmtCall("PATCH", `/workspaces/${encodeURIComponent(workspace_id)}`, { name }),
+  );
 }
 
 export async function handleProvisionWorkspace(args: unknown) {
@@ -662,6 +675,12 @@ export function registerManagementTools(srv: McpServer) {
     "Management: get one workspace's detail by UUID.",
     { workspace_id: z.string().describe("Workspace UUID") },
     handleGetWorkspace,
+  );
+  srv.tool(
+    "rename_workspace",
+    "Management: rename an existing workspace in place. Preserves its ID, files, chat history, configuration and running agent; no restart or recreation. Resolve the workspace UUID with list_workspaces first. The new name must be unique among siblings.",
+    RenameWorkspaceSchema.shape,
+    handleRenameWorkspace,
   );
   srv.tool(
     "provision_workspace",

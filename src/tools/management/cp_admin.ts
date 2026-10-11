@@ -6,13 +6,15 @@
  * tenant-admin surface of its own org but reaches NOTHING on the control
  * plane — CP `/api/v1/orgs/*` (org create/delete/export/members/billing)
  * 401/403 the org key. `list_orgs` / `get_org` are CP-tier reads that need
- * a WorkOS session cookie OR the CP admin bearer (`CP_ADMIN_API_TOKEN`).
+ * a WorkOS session cookie OR the CP admin bearer (`CP_ADMIN_API_TOKEN`). The
+ * production promote tool is narrower still: it uses only the dedicated
+ * `CP_PROMOTE_PROD_API_TOKEN`, never the generic CP admin bearer.
  *
  * Rather than register these against the tenant host (where they would
  * silently 404/401 with the org key), they live here and:
  *   - point at the control plane (`MOLECULE_CP_URL` / `api.moleculesai.app`),
- *   - authenticate with `CP_ADMIN_API_TOKEN` (admin bearer),
- *   - are GATED on that token being present: when it's absent the tool
+ *   - authenticate with the least-capable bearer for the exact operation,
+ *   - are GATED on that bearer being present: when it's absent the tool
  *     returns a clear, structured "not configured / CP-tier" message
  *     instead of a confusing upstream auth error.
  *
@@ -54,22 +56,40 @@ function cpNotConfigured(tool: string): ApiError {
   };
 }
 
+interface CpCallOptions {
+  /** Per-call capability token. Omit to use the generic CP admin bearer. */
+  token?: string;
+  /** A synchronous boundary may require one exact success status. */
+  expectedStatus?: number;
+  /** Per-environment endpoint override for callers such as promote. */
+  baseUrl?: string;
+}
+
 /** Authenticated CP request. Never throws. */
 async function cpCall<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
+  options: CpCallOptions = {},
 ): Promise<T | ApiError> {
-  const tok = process.env.CP_ADMIN_API_TOKEN;
+  const tok = options.token ?? process.env.CP_ADMIN_API_TOKEN;
   if (!tok) return cpNotConfigured(path) as ApiError;
+  const base = (options.baseUrl ?? cpUrl()).replace(/\/+$/, "");
   try {
-    const base = cpUrl();
     const res = await fetch(`${base}${path}`, {
       method,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      redirect: "error",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "curl/8.4.0",
+        Authorization: `Bearer ${tok}`,
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) {
+    const accepted = options.expectedStatus === undefined
+      ? res.ok
+      : res.status === options.expectedStatus;
+    if (!accepted) {
       const text = await res.text();
       if (res.status === 401 || res.status === 403) {
         return { error: "AUTH_ERROR", detail: text, status: res.status };
@@ -84,107 +104,13 @@ async function cpCall<T = unknown>(
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logError(err, `CP admin API error (${method} ${path})`, { url: cpUrl() });
-    return { error: `Control plane unreachable at ${cpUrl()}`, detail: msg };
+    logError(err, `CP admin API error (${method} ${path})`, { url: base });
+    return { error: `Control plane unreachable at ${base}`, detail: msg };
   }
 }
 
 const GetOrgSchema = z.object({
   slug: z.string().describe("Org slug (e.g. 'agents-team')"),
-});
-
-/**
- * recreate_workspace — the HARD redeploy that restart_workspace cannot do.
- *
- * WHY THIS EXISTS (controlplane#579): the soft `restart_workspace` lever
- * (tenant POST /workspaces/:id/restart) bounces the container but REUSES
- * the workspace's already-pulled template image. When the runtime-image
- * pin has been promoted to a newer digest (the #cp245 "stale digest"
- * class of incident), a soft restart keeps running the OLD image — there
- * is no org-key-reachable lever to force the container onto the
- * currently-promoted pin. The CP-admin endpoint
- *   POST /cp/admin/tenants/:slug/workspaces/redeploy
- *   {"runtime": <runtime|"">, "recreate": true}
- * (controlplane router.go:527 → AdminHandler.RedeployTenantWorkspaces →
- * provisioner.WorkspaceRedeployer) re-pulls the pinned digest from ECR
- * and FORCE-REMOVES + recreates the running ws-* container(s) so they
- * come up on the new image — preserving the /workspace + /configs binds
- * (only the container is swapped, not the data volumes).
- *
- * SCOPE NOTE: the CP endpoint is TENANT+RUNTIME scoped, not single-
- * container. It refreshes the workspace template image for `runtime`
- * (or ALL runtimes when omitted) on the tenant and recreates every
- * running ws-* container of that runtime. `workspace_id` here is the
- * caller's reference for "the workspace I want onto the new pin"; we use
- * its `runtime` (looked up via the tenant API when not supplied) to scope
- * the redeploy as narrowly as the endpoint allows. To target a single
- * runtime, pass `runtime` explicitly.
- *
- * FAIL-CLOSED SCOPE GUARD: a tenant-wide ALL-runtimes recreate is a large
- * destructive blast radius, so we never DEFAULT into it on a failure. It
- * is only entered when the caller asks for it *explicitly* — by passing
- * `all_runtimes: true` (with no `runtime` and no `workspace_id`). If a
- * `workspace_id` is supplied but its runtime cannot be resolved, and no
- * explicit `runtime` was given, the tool ABORTS (recreates nothing)
- * rather than silently widening to every runtime on the tenant.
- *
- * AUDIT: this is a destructive CP-admin op, so it must be attributable.
- * The caller passes `actor` (who) and `reason` (why); these are forwarded
- * in the redeploy request body (so the CP endpoint can record them if it
- * supports an audit field) AND emitted as a structured audit log line
- * before the recreate is issued. `actor` falls back to MOLECULE_AUDIT_ACTOR
- * / the configured tenant identity so the op is never anonymous.
- *
- * AUTH: this is a CP-tier tool (CP_ADMIN_API_TOKEN) — the Org API Key
- * cannot reach the control plane. The tenant `slug` is resolved from the
- * `slug` arg, falling back to MOLECULE_ORG_SLUG (the tenant identity the
- * management surface is already configured with).
- */
-const RecreateWorkspaceSchema = z.object({
-  workspace_id: z
-    .string()
-    .optional()
-    .describe(
-      "Workspace UUID to bring onto the current pin. Used to resolve the runtime to scope the redeploy (the CP endpoint is tenant+runtime scoped, not single-container). Optional when `runtime` is given.",
-    ),
-  runtime: z
-    .string()
-    .optional()
-    .describe(
-      "Restrict the redeploy to ONE template image (e.g. 'claude-code', 'codex'). Omit to refresh ALL runtimes on the tenant. If omitted and workspace_id is given, the workspace's runtime is looked up and used.",
-    ),
-  slug: z
-    .string()
-    .optional()
-    .describe("Tenant org slug (e.g. 'agents-team'). Defaults to MOLECULE_ORG_SLUG."),
-  all_runtimes: z
-    .boolean()
-    .optional()
-    .describe(
-      "Opt INTO a tenant-wide recreate of EVERY runtime's containers (large blast radius). Only honored when neither `runtime` nor `workspace_id` is given. Must be set explicitly — the tool never defaults into a tenant-wide recreate, including on a workspace-runtime lookup failure.",
-    ),
-  actor: z
-    .string()
-    .optional()
-    .describe(
-      "AUDIT (who): identity of the operator/agent invoking this destructive redeploy. Forwarded to the CP audit field and logged. Falls back to MOLECULE_AUDIT_ACTOR / the configured tenant identity if omitted.",
-    ),
-  reason: z
-    .string()
-    .optional()
-    .describe(
-      "AUDIT (why): justification for the destructive recreate (e.g. 'onto promoted pin sha256:… per cp#245'). Forwarded to the CP audit field and logged.",
-    ),
-  recreate: z
-    .boolean()
-    .optional()
-    .describe(
-      "Force-remove + recreate the running container(s) onto the freshly-pulled image. Default true (the whole point). Set false to pre-pull the new image WITHOUT disrupting in-flight sessions.",
-    ),
-  dry_run: z
-    .boolean()
-    .optional()
-    .describe("Resolve the tenant URL + the request that WOULD be sent, without calling the tenant."),
 });
 
 export async function handleListOrgs() {
@@ -200,166 +126,234 @@ export async function handleGetOrg(args: unknown) {
   return toMcpResult(await cpCall("GET", `/api/v1/orgs/${encodeURIComponent(p.slug)}`));
 }
 
-export async function handleRecreateWorkspace(args: unknown) {
-  const p = validate(args, RecreateWorkspaceSchema);
+// ---------------------------------------------------------------------------
+// Synchronous tenant-fleet production promote (contract v2)
+//
+// The cross-repository request SSOT is molecule-ai-sdk:
+// contracts/promote-request/promote-request.contract.json. This reader keeps a
+// verbatim mirror under contracts/ and CI byte-compares it to SDK main. The
+// control plane owns only tenant-fleet rollout; runtime/template/canvas/app/CP
+// artifacts remain repository-owned CI-on-merge boundaries.
+// ---------------------------------------------------------------------------
 
-  if (!cpConfigured()) return toMcpResult(cpNotConfigured("recreate_workspace"));
+export const PROMOTE_REQUEST_FIELDS = ["env", "components", "dry_run", "confirm"] as const;
+const PROMOTE_COMPONENT = "tenant-fleet" as const;
+const PROMOTE_COMPONENT_SELECTORS = ["all", PROMOTE_COMPONENT] as const;
+const PROMOTE_ENVIRONMENTS = ["production", "staging"] as const;
 
-  // Resolve the tenant slug: explicit arg wins, else the configured
-  // tenant identity (MOLECULE_ORG_SLUG — same env the management surface
-  // routes with). The CP redeploy endpoint is slug-keyed.
-  const slug = p.slug ?? process.env.MOLECULE_ORG_SLUG;
-  if (!slug) {
-    return toMcpResult({
-      error: "INVALID_ARGUMENTS",
-      detail:
-        "tenant slug is required: pass `slug`, or set MOLECULE_ORG_SLUG. " +
-        "The CP redeploy endpoint (/cp/admin/tenants/:slug/workspaces/redeploy) is slug-keyed.",
-    });
+const PromoteToProductionInput = {
+  env: z
+    .enum(PROMOTE_ENVIRONMENTS)
+    .optional()
+    .describe("Environment assertion: production (default) or staging."),
+  components: z
+    .array(z.enum(PROMOTE_COMPONENT_SELECTORS))
+    .max(1)
+    .optional()
+    .describe('Empty, ["all"], or ["tenant-fleet"]; every form selects the sole tenant-fleet component.'),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe("Defaults true. Plans and validates the immutable full-fleet rollout without mutation."),
+  confirm: z
+    .boolean()
+    .optional()
+    .describe("Must be true for every wet full-fleet rollout; defaults false."),
+};
+
+const PromoteToProductionSchema = z.object(PromoteToProductionInput).strict();
+
+function promoteCpUrl(env: (typeof PROMOTE_ENVIRONMENTS)[number]): string {
+  const explicit = process.env.MOLECULE_CP_URL || process.env.CP_API_URL;
+  if (explicit) return explicit.replace(/\/+$/, "");
+  if (env === "staging") {
+    return (process.env.MOLECULE_CP_STAGING_URL || "https://staging-api.moleculesai.app")
+      .replace(/\/+$/, "");
+  }
+  return "https://api.moleculesai.app";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function isImmutableImage(value: unknown): value is string {
+  return typeof value === "string" && /@sha256:[0-9a-f]{64}$/.test(value);
+}
+
+/**
+ * Independently verify CP's synchronous evidence envelope. A 200 or an
+ * `ok:true` bit alone is never completion: the sole result must carry exact
+ * immutable fleet coverage and one identity-bearing row per enumerated tenant.
+ */
+function promoteCompletionError(
+  payload: unknown,
+  env: (typeof PROMOTE_ENVIRONMENTS)[number],
+  dryRun: boolean,
+): string | undefined {
+  if (!isRecord(payload)) return "response is not a JSON object";
+  if (payload.ok !== true) return "ok=true is required";
+  if (payload.complete !== !dryRun) {
+    return dryRun ? "dry-run must report complete=false" : "wet rollout must report complete=true";
+  }
+  if (payload.env !== env) return `response env must equal ${env}`;
+  if (payload.dry_run !== dryRun) return `response dry_run must equal ${dryRun}`;
+  if (!Array.isArray(payload.results) || payload.results.length !== 1) {
+    return "exactly one tenant-fleet result is required";
   }
 
-  // Scope the redeploy to one runtime when we can, and FAIL CLOSED when we
-  // cannot. Explicit `runtime` wins. Otherwise, if a workspace_id is given,
-  // look its runtime up via the tenant management API so we recreate only
-  // that runtime's containers. A tenant-wide ALL-runtimes recreate is a
-  // large destructive blast radius, so it is NEVER a fallback — it is only
-  // entered when the caller asks for it explicitly via `all_runtimes:true`
-  // (with no runtime/workspace_id to scope).
-  let runtime = p.runtime;
-  let runtimeSource: "explicit" | "workspace_lookup" | "all_runtimes" =
-    runtime ? "explicit" : "all_runtimes";
+  const result = payload.results[0];
+  if (!isRecord(result) || result.component !== PROMOTE_COMPONENT) {
+    return "the sole result must be component=tenant-fleet";
+  }
+  const expectedStatus = dryRun ? "planned" : "ok";
+  if (result.status !== expectedStatus) return `tenant-fleet status must be ${expectedStatus}`;
+  if (!isImmutableImage(result.target_image)) {
+    return "tenant-fleet target_image must be an immutable sha256 digest reference";
+  }
 
-  if (!runtime && p.workspace_id) {
-    const ws = await mgmtGet(`/workspaces/${encodeURIComponent(p.workspace_id)}`);
-    if (!isApiError(ws) && ws && typeof ws === "object") {
-      const r = (ws as Record<string, unknown>).runtime;
-      if (typeof r === "string" && r.length > 0) {
-        runtime = r;
-        runtimeSource = "workspace_lookup";
+  const coverage = result.coverage;
+  if (!isRecord(coverage)) return "tenant-fleet coverage is required";
+  if (coverage.target_image !== result.target_image || !isImmutableImage(coverage.target_image)) {
+    return "coverage target_image must equal the immutable tenant-fleet target";
+  }
+  if (coverage.target_tag !== undefined && coverage.target_tag !== "") {
+    return "moving target_tag coverage is forbidden";
+  }
+  if (!isNonNegativeInteger(coverage.enumerated) || coverage.enumerated === 0) {
+    return "coverage enumerated must be a positive integer";
+  }
+  for (const field of ["planned", "refreshed", "verified_on_target", "failed"] as const) {
+    if (!isNonNegativeInteger(coverage[field])) return `coverage ${field} must be a non-negative integer`;
+  }
+  if (!Array.isArray(coverage.stragglers) || coverage.stragglers.length !== 0) {
+    return "coverage must contain zero stragglers";
+  }
+
+  const enumerated = coverage.enumerated;
+  if (dryRun) {
+    if (
+      coverage.planned !== enumerated ||
+      coverage.refreshed !== 0 ||
+      coverage.verified_on_target !== 0 ||
+      coverage.failed !== 0
+    ) {
+      return "dry-run coverage must plan every tenant with zero refresh, verification, or failure";
+    }
+  } else if (
+    coverage.planned !== 0 ||
+    coverage.refreshed !== enumerated ||
+    coverage.verified_on_target !== enumerated ||
+    coverage.failed !== 0
+  ) {
+    return "wet coverage must refresh and verify every enumerated tenant with zero failures";
+  }
+
+  if (!Array.isArray(result.tenant_results) || result.tenant_results.length !== enumerated) {
+    return "tenant_results must contain exactly one row per enumerated tenant";
+  }
+  const slugs = new Set<string>();
+  for (const row of result.tenant_results) {
+    if (!isRecord(row)) return "every tenant result must be an object";
+    for (const field of ["slug", "instance_id", "provider", "phase"] as const) {
+      if (typeof row[field] !== "string" || row[field].trim() === "") {
+        return `every tenant result requires a non-empty ${field}`;
       }
     }
-    if (!runtime) {
-      // FAIL CLOSED: workspace_id was given but its runtime is unresolvable
-      // (org-key tenant lookup unavailable or workspace not found) and no
-      // explicit runtime was supplied. Defaulting to a tenant-wide recreate
-      // here would destructively recreate EVERY runtime's containers on a
-      // mere lookup miss. Abort and recreate nothing.
-      return toMcpResult({
-        error: "RUNTIME_UNRESOLVED",
-        detail:
-          `could not resolve the runtime for workspace '${p.workspace_id}' ` +
-          "(tenant lookup unavailable or workspace not found), and no explicit " +
-          "`runtime` was provided. Refusing to fall back to a tenant-wide " +
-          "all-runtimes recreate (too broad / not fail-closed). Pass `runtime` " +
-          "explicitly to scope the redeploy, or `all_runtimes:true` to opt into " +
-          "a tenant-wide recreate deliberately.",
-        slug,
-        workspace_id: p.workspace_id,
-      });
+    if (slugs.has(row.slug as string)) return `duplicate tenant result for ${row.slug as string}`;
+    slugs.add(row.slug as string);
+    if (row.error !== undefined && row.error !== "") return `tenant ${row.slug as string} reported an error`;
+    if (dryRun) {
+      if (row.ssm_status !== "DryRun" || row.verified_on_target !== false) {
+        return `dry-run tenant ${row.slug as string} is not a non-mutating planned row`;
+      }
+    } else if (
+      row.healthz_ok !== true ||
+      row.verified_on_target !== true ||
+      row.running_image !== result.target_image
+    ) {
+      return `tenant ${row.slug as string} did not prove healthy exact-image completion`;
     }
   }
+  return undefined;
+}
 
-  // A tenant-wide ALL-runtimes recreate (no runtime, no workspace_id) must be
-  // an explicit opt-in, never an implicit default.
-  if (!runtime && !p.workspace_id && !p.all_runtimes) {
+export async function handlePromoteToProduction(args: unknown) {
+  const p = validate(args, PromoteToProductionSchema);
+  const env = p.env ?? "production";
+  const dryRun = p.dry_run ?? true;
+  const confirm = p.confirm ?? false;
+  const components: [typeof PROMOTE_COMPONENT] = [PROMOTE_COMPONENT];
+
+  if (!dryRun && !confirm) {
     return toMcpResult({
-      error: "SCOPE_REQUIRED",
+      error: "CONFIRMATION_REQUIRED",
       detail:
-        "recreate_workspace needs an explicit scope: pass `runtime`, or " +
-        "`workspace_id` (its runtime is resolved), or — to deliberately " +
-        "recreate EVERY runtime's containers tenant-wide — `all_runtimes:true`. " +
-        "Refusing an unscoped tenant-wide recreate (fail-closed).",
-      slug,
+        "refusing a wet tenant-fleet rollout without explicit operator GO; pass confirm:true or use dry_run:true",
+      env,
+      components,
+      dry_run: false,
     });
   }
 
-  const recreate = p.recreate ?? true;
-
-  // AUDIT (defect 2): this is a destructive CP-admin op — record who/why.
-  // `actor` is never anonymous: explicit arg → MOLECULE_AUDIT_ACTOR → the
-  // configured tenant identity. `reason` is forwarded verbatim (may be
-  // undefined). Both go in the request body (so the CP redeploy endpoint can
-  // persist them if it supports an audit field) AND a structured audit log
-  // line is emitted BEFORE the recreate is issued, so the op is attributable
-  // even if the endpoint ignores the fields.
-  //
-  // FAIL-CLOSED: if no actor can be resolved, abort rather than emit an
-  // anonymous/"unknown" audit trail for a destructive admin operation.
-  // Also rejects the literal string "unknown" — the caller must provide
-  // an attributable identity (mcp-server#48).
-  const actor =
-    p.actor ??
-    process.env.MOLECULE_AUDIT_ACTOR ??
-    process.env.MOLECULE_ORG_SLUG ??
-    "";
-  if (!actor || actor === "unknown") {
+  const token = env === "production"
+    ? process.env.CP_PROMOTE_PROD_API_TOKEN
+    : process.env.CP_ADMIN_API_TOKEN;
+  if (!token) {
+    const required = env === "production" ? "CP_PROMOTE_PROD_API_TOKEN" : "CP_ADMIN_API_TOKEN";
     return toMcpResult({
-      error: "INVALID_ARGUMENTS",
+      error: "CP_PROMOTE_NOT_CONFIGURED",
       detail:
-        "audit actor is required for this destructive CP-admin operation. " +
-        "Pass `actor`, or set MOLECULE_AUDIT_ACTOR / MOLECULE_ORG_SLUG.",
-      slug,
+        `promote_to_production for ${env} requires ${required}. ` +
+        (env === "production"
+          ? "The generic CP_ADMIN_API_TOKEN is never a production promote substitute."
+          : "The production capability token is never sent to staging."),
+      env,
+      dry_run: dryRun,
     });
   }
-  const reason = p.reason;
-  const dryRun = p.dry_run ?? false;
 
-  logWarn("recreate_workspace: CP-admin hard redeploy (destructive)", {
-    audit: true,
-    operation: "recreate_workspace",
-    actor,
-    reason: reason ?? null,
-    slug,
-    workspace_id: p.workspace_id ?? null,
-    runtime: runtime ?? null,
-    runtime_source: runtimeSource,
-    recreate,
-    dry_run: dryRun,
-    timestamp: new Date().toISOString(),
-  });
+  const body = { env, components, dry_run: dryRun, confirm };
+  if (!dryRun) {
+    logWarn("promote_to_production: confirmed synchronous tenant-fleet rollout", {
+      audit: true,
+      operation: "promote_to_production",
+      env,
+      components,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
-  const body: Record<string, unknown> = {
-    runtime: runtime ?? "",
-    recreate,
-    dry_run: dryRun,
-    actor,
-    ...(reason !== undefined ? { reason } : {}),
-  };
-
-  // POST /cp/admin/tenants/:slug/workspaces/redeploy — re-pulls the
-  // currently-promoted runtime-image pin from ECR and (recreate=true)
-  // force-removes + recreates the running ws-* container(s) onto it.
-  const res = await cpCall(
+  const response = await cpCall<Record<string, unknown>>(
     "POST",
-    `/api/v1/admin/tenants/${encodeURIComponent(slug)}/workspaces/redeploy`,
+    "/cp/admin/promote",
     body,
+    { token, expectedStatus: 200, baseUrl: promoteCpUrl(env) },
   );
-
-  if (isApiError(res)) {
+  if (isApiError(response)) {
     return toMcpResult({
-      error: "REDEPLOY_FAILED",
-      detail: res,
-      slug,
-      requested_runtime: runtime ?? null,
-      recreate,
-      runtime_source: runtimeSource,
-      actor,
-      reason: reason ?? null,
+      error: "PROMOTE_FAILED",
+      detail: response,
+      env,
+      dry_run: dryRun,
     });
   }
 
-  return toMcpResult({
-    ok: true,
-    slug,
-    workspace_id: p.workspace_id ?? null,
-    requested_runtime: runtime ?? null,
-    runtime_source: runtimeSource,
-    recreate,
-    dry_run: dryRun,
-    actor,
-    reason: reason ?? null,
-    result: res,
-  });
+  const incomplete = promoteCompletionError(response, env, dryRun);
+  if (incomplete) {
+    return toMcpResult({
+      error: "PROMOTE_INCOMPLETE",
+      detail: incomplete,
+      env,
+      dry_run: dryRun,
+      response,
+    });
+  }
+  return toMcpResult(response);
 }
 
 // ---------------------------------------------------------------------------
@@ -608,37 +602,10 @@ export function registerCpAdminTools(srv: McpServer) {
     handleGetOrg,
   );
   srv.tool(
-    "recreate_workspace",
-    "Management (CP-TIER): recreate/redeploy a workspace onto the currently-promoted runtime-image pin — unlike restart_workspace, which reuses the old (possibly stale) image. Re-pulls the pinned digest from ECR and force-removes + recreates the running container so it comes up on the new image, preserving /workspace + /configs. Scoped to one runtime (resolved from workspace_id, or pass `runtime`). DESTRUCTIVE + fail-closed: never defaults to a tenant-wide recreate — a workspace-runtime lookup miss aborts, and a tenant-wide all-runtimes recreate requires explicit `all_runtimes:true`. Pass `actor`+`reason` for the audit trail. Requires CP_ADMIN_API_TOKEN — the Org API Key CANNOT reach the control plane.",
-    {
-      workspace_id: z
-        .string()
-        .optional()
-        .describe("Workspace UUID to bring onto the current pin (used to resolve the runtime). Optional when `runtime` is given. If its runtime cannot be resolved and no `runtime` is given, the op ABORTS (does not widen to tenant-wide)."),
-      runtime: z
-        .string()
-        .optional()
-        .describe("Restrict to one template image (e.g. 'claude-code'). Auto-derived from workspace_id when omitted. To refresh ALL runtimes, use all_runtimes:true."),
-      slug: z.string().optional().describe("Tenant org slug. Defaults to MOLECULE_ORG_SLUG."),
-      all_runtimes: z
-        .boolean()
-        .optional()
-        .describe("Opt into a tenant-wide recreate of EVERY runtime (large blast radius). Required to run unscoped; never a default/fallback."),
-      actor: z
-        .string()
-        .optional()
-        .describe("AUDIT (who) for this destructive op. Falls back to MOLECULE_AUDIT_ACTOR / tenant identity."),
-      reason: z
-        .string()
-        .optional()
-        .describe("AUDIT (why) for this destructive op (e.g. 'onto promoted pin per cp#245')."),
-      recreate: z
-        .boolean()
-        .optional()
-        .describe("Force-recreate the container onto the new image. Default true. false = pre-pull only, no disruption."),
-      dry_run: z.boolean().optional().describe("Resolve routing + the request that WOULD be sent, without calling the tenant."),
-    },
-    handleRecreateWorkspace,
+    "promote_to_production",
+    "Management (CP-TIER): run the CP-native synchronous immutable tenant-fleet rollout. Runtime, template, canvas, app, control-plane, and tenant-proxy releases remain repository-owned CI-on-merge. dry_run defaults true and must return exact non-mutating fleet evidence; every wet rollout requires confirm:true as explicit operator GO and succeeds only on HTTP 200 with exact full-fleet coverage. Production requires the dedicated CP_PROMOTE_PROD_API_TOKEN; the generic CP admin bearer is never substituted.",
+    PromoteToProductionInput,
+    handlePromoteToProduction,
   );
   srv.tool(
     "migrate_workspace_provider",

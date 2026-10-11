@@ -1,16 +1,48 @@
+import { readFileSync } from "node:fs";
 import { error as logError } from "./utils/logger.js";
+import { isSelfMode, isManagementMode } from "./mode.js";
 
-// Read the platform API base URL from environment.
-// Priority: MOLECULE_API_URL (canonical CLI/SDK env var, per platform docs)
+// Default on-disk location of the per-workspace token inside a workspace
+// container. This is the restart-ROTATED file written by the runtime
+// (platform_auth.py) — the in-container SSOT for the workspace token. It is
+// NOT an env var (an env-injected token can't be re-read after rotation). The
+// self-mode auth path reads it fresh on every call. Overridable via
+// MOLECULE_WORKSPACE_TOKEN_FILE for tests / non-default layouts.
+const DEFAULT_WORKSPACE_TOKEN_FILE = "/configs/.auth_token";
+
+/**
+ * Read the per-workspace token for SELF mode from the on-disk auth-token file,
+ * FRESH on every call (never cached at module load) so a restart-driven token
+ * rotation is picked up without restarting this Node child.
+ *
+ * Returns the trimmed token, or "" when the file is missing / empty / unreadable
+ * — the caller then omits the Authorization header entirely (fail-closed): the
+ * request 401s rather than silently falling back to any other credential.
+ */
+function readWorkspaceToken(): string {
+  const path =
+    process.env.MOLECULE_WORKSPACE_TOKEN_FILE || DEFAULT_WORKSPACE_TOKEN_FILE;
+  try {
+    return readFileSync(path, "utf8").trim();
+  } catch {
+    // Missing/unreadable file → fail closed. Intentionally swallowed: a self
+    // request with no token must 401 at core, never escalate to the org key.
+    return "";
+  }
+}
+
+// Read the per-tenant workspace API base URL from environment.
+// Priority: MOLECULE_API_URL (canonical CLI/SDK env var, per platform docs).
 //
-//   > Required environment variables:
-//   >   MOLECULE_API_URL  — Control plane API base URL
-//   >   MOLECULE_RUNTIME_URL — Workspace runtime URL
-//   >   (per docs/development/constraints-and-rules.md)
+//   > Primary environment variable:
+//   >   MOLECULE_API_URL  — per-tenant workspace API base URL
+//
+// SaaS callers use https://<slug>.moleculesai.app. The control-plane host
+// https://api.moleculesai.app is a separate tier used only by the gated CP-admin
+// module; do not send a tenant API token there.
 //
 // Fallbacks exist for legacy callers (MOLECULE_URL, PLATFORM_URL) and
-// localhost dev default. Injecting MOLECULE_API_URL at container provision
-// is handled by platform/internal/provisioner/provisioner.go.
+// the no-auth localhost development default.
 export const PLATFORM_URL =
   process.env.MOLECULE_API_URL ||
   process.env.MOLECULE_URL ||
@@ -33,35 +65,73 @@ export function isApiError(v: unknown): v is ApiError {
  * When an auth token env var is set and non-empty we send
  * `Authorization: Bearer <token>`. Token resolution (first non-empty wins):
  *   MOLECULE_API_KEY → MOLECULE_API_TOKEN
- * This is the admin-Bearer credential the
- * control plane expects for the majority of admin endpoints
- * (`/cp/admin/orgs`, `/cp/admin/orgs/:slug/*`, and the workspace/agent/
- * memory/etc. tool families that route through it).
+ * This is the bearer credential expected by the configured tenant's
+ * workspace/agent/memory/etc. routes.
  *
- * When the key is unset/empty we send NO auth header — this is deliberate
- * back-compat so a no-auth localhost dev platform keeps working. Auth is NOT
- * hard-required at the request layer; misconfiguration is surfaced loudly at
- * startup (see the preflight in src/index.ts) rather than by failing closed
- * on every call.
+ * When the key is unset/empty we send no auth header only to preserve the
+ * no-auth localhost development path. A real tenant host requires a key;
+ * startup preflight reports that misconfiguration.
  *
  * SaaS tenant routing: when MOLECULE_ORG_ID (canonical) or its legacy aliases
  * are set, we also attach `X-Molecule-Org-Id` so the multi-tenant gateway can
  * route the request. Omitted when unset to preserve single-tenant behaviour.
  *
- * NOTE (follow-up, tracked in issue #36): a handful of endpoints need
- * different/extra credentials that this single Bearer does not cover —
- *   • POST /cp/workspaces/provision and DELETE /cp/workspaces/:id need a
- *     two-factor pair: `Authorization: Bearer <PROVISION_SHARED_SECRET>`
- *     plus `X-Molecule-Admin-Token: <tenant admin_token>`.
- *   • /cp/internal/llm/* need a tenant-scoped `Authorization: Bearer
- *     <tenant admin_token>` rather than the admin key.
- * The `extraHeaders` parameter on apiCall() is the hook that lets those tools
- * override/augment auth per call; wiring the provision-secret env and the
- * tenant-token fetch into those specific tools is a focused follow-up.
+ * The `extraHeaders` parameter on apiCall() remains the seam for tenant routes
+ * that require an additional endpoint-specific header.
+ *
+ * SELF mode (MOLECULE_MCP_MODE=self, audience=self) is a SEPARATE, fail-closed
+ * bearer path handled first: the bearer is the per-workspace token read from
+ * disk per call, and it is used EXCLUSIVELY. In self mode we NEVER read
+ * MOLECULE_API_KEY / MOLECULE_API_TOKEN (on a concierge box that is the
+ * org-admin key — sending it here would let a self-scoped tool act org-wide)
+ * and we set X-Molecule-Org-Id ONLY as the tenant ROUTING header (never the org
+ * key): the bearer stays the per-workspace token, so core's WorkspaceAuth binds
+ * the call to its own :id (a foreign :id 401s intrinsically) — the org id merely
+ * selects the tenant, which the SaaS tenant API REQUIRES on every request
+ * (TENANT_ORG_HEADER_REQUIRED otherwise). A missing or empty token file yields
+ * NO Authorization header so the call 401s.
  */
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
-  const key = process.env.MOLECULE_API_KEY || process.env.MOLECULE_API_TOKEN;
+
+  // Self mode: workspace-token-ONLY AUTH, fail-closed. Handled before — and with
+  // an early return that bypasses — the org/operator-key path below.
+  if (isSelfMode()) {
+    const wsToken = readWorkspaceToken();
+    if (wsToken.length > 0) {
+      headers.Authorization = `Bearer ${wsToken}`;
+    }
+    // Empty/missing token → no Authorization header → 401 (fail closed).
+    // CRITICAL: never fall through to MOLECULE_API_KEY / MOLECULE_API_TOKEN.
+    //
+    // Attach the tenant ROUTING header. This is NOT a privilege: the bearer stays
+    // the per-workspace token (core WorkspaceAuth still binds to the OWN :id — a
+    // foreign :id 401s), the org id only selects the tenant. The SaaS tenant API
+    // requires X-Molecule-Org-Id on EVERY request (400 TENANT_ORG_HEADER_REQUIRED
+    // otherwise), so omitting it makes every self-mode tenant call fail.
+    const selfOrgId =
+      process.env.MOLECULE_ORG_ID ||
+      process.env.MOLECULE_ORGANIZATION_ID ||
+      process.env.MOLECULE_ORG;
+    if (selfOrgId && selfOrgId.length > 0) {
+      headers["X-Molecule-Org-Id"] = selfOrgId;
+    }
+    return headers;
+  }
+
+  // MOLECULE_ORG_API_KEY is the management/concierge org-admin bearer (audience=org
+  // injector credential_env; the management tools read it strictly in
+  // tools/management/client.ts). Adding it here lets the api.ts-based tools —
+  // notably the cross-workspace SCHEDULE tools now registered in management mode —
+  // authenticate on the management surface, where MOLECULE_API_KEY/_TOKEN are not
+  // set. It is a FALLBACK (the existing vars win) that we CODE-GATE to management
+  // mode: in the default a2a/workspace-ops mode the org-admin key must NEVER be
+  // emitted, even if it is present in env — the mode gate is the enforcement, not
+  // a trust that the injector never leaks the env into a non-management process.
+  const key =
+    process.env.MOLECULE_API_KEY ||
+    process.env.MOLECULE_API_TOKEN ||
+    (isManagementMode() ? process.env.MOLECULE_ORG_API_KEY : undefined);
   if (key && key.length > 0) {
     headers.Authorization = `Bearer ${key}`;
   }
@@ -81,7 +151,10 @@ export function authHeaders(): Record<string, string> {
  * same shape (and a future switch to e.g. structured content happens once).
  */
 export function toMcpResult(data: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    ...(isApiError(data) ? { isError: true } : {}),
+  };
 }
 
 /**
@@ -149,10 +222,8 @@ export async function apiCall<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
-  // Optional per-call header overrides. Merged LAST so a caller can override
-  // or augment the Bearer auth — e.g. the two-factor provision endpoints that
-  // need an additional `X-Molecule-Admin-Token`, or the tenant-scoped
-  // `/cp/internal/llm/*` endpoints that need a different Bearer (see #36).
+  // Optional per-call header overrides. Merged LAST so a tenant endpoint can
+  // override or augment the default Bearer when its contract requires it.
   extraHeaders?: Record<string, string>,
   // Query parameters are separate from the pathname so dynamic path values
   // cannot retarget a request through `?` or `#` injection.
@@ -273,3 +344,4 @@ export async function platformGet<T = unknown>(
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
