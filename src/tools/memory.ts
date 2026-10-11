@@ -21,7 +21,7 @@ export async function handleSearchMemory(params: {
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
   if (scope) urlParams.set("scope", scope);
-  const data = await platformGet(`/workspaces/${workspace_id}/memories?${urlParams}`);
+  const data = await platformGet(`/workspaces/${workspace_id}/memories`, 3, undefined, urlParams);
   return toMcpResult(data);
 }
 
@@ -40,8 +40,7 @@ export async function handleSessionSearch(params: {
   const qs = new URLSearchParams();
   if (q) qs.set("q", q);
   if (limit) qs.set("limit", String(limit));
-  const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const data = await platformGet(`/workspaces/${workspace_id}/session-search${suffix}`);
+  const data = await platformGet(`/workspaces/${workspace_id}/session-search`, 3, undefined, qs);
   return toMcpResult(data);
 }
 

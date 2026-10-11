@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { apiCall, platformGet, toMcpResult } from "../api.js";
+import { apiCall, apiPathSegment, platformGet, toMcpResult } from "../api.js";
 import { validate } from "../utils/validation.js";
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ export async function handleSetGlobalSecret(args: unknown): Promise<ReturnType<t
 
 export async function handleDeleteGlobalSecret(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, DeleteGlobalSecretSchema);
-  const data = await apiCall("DELETE", `/settings/secrets/${params.key}`);
+  const data = await apiCall("DELETE", `/settings/secrets/${apiPathSegment(params.key)}`);
   return toMcpResult(data);
 }
 

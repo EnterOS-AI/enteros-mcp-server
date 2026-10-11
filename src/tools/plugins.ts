@@ -78,7 +78,10 @@ export async function handleListAvailablePlugins(args: unknown): Promise<ReturnT
 export async function handleCheckPluginCompatibility(args: unknown): Promise<ReturnType<typeof toMcpResult>> {
   const params = validate(args, CheckPluginCompatibilitySchema);
   const data = await platformGet(
-    `/workspaces/${params.workspace_id}/plugins/compatibility?runtime=${encodeURIComponent(params.runtime)}`,
+    `/workspaces/${params.workspace_id}/plugins/compatibility`,
+    3,
+    undefined,
+    { runtime: params.runtime },
   );
   return toMcpResult(data);
 }
