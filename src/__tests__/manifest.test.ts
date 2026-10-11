@@ -106,9 +106,10 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "management";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names).toHaveLength(54); // 46 management + 6 schedule + 2 plugin-update verbs
+    expect(names).toHaveLength(55); // 47 management + 6 schedule + 2 plugin-update verbs
     expect(new Set(names).size).toBe(names.length); // no duplicate registrations
     expect(names).toContain("provision_workspace");
+    expect(names).toContain("rename_workspace");
     expect(names).toContain("promote_to_production");
     // Cross-workspace schedule management (org key) is part of the management surface.
     for (const verb of [

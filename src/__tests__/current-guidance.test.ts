@@ -46,7 +46,7 @@ describe("current MCP setup guidance", () => {
     );
 
     expect(managementClient).toMatch(
-      /The workspace surface sends\s+`MOLECULE_API_KEY` when configured/,
+      /The workspace surface\s+sends\s+`MOLECULE_API_KEY` when configured/,
     );
   });
 
@@ -93,10 +93,8 @@ describe("current MCP setup guidance", () => {
     expect(claude).not.toMatch(/\b88 total\b/i);
     expect(readme).toContain("dist/manifest.json");
     expect(claude).toContain("dist/manifest.json");
-    expect(readme).toContain("85 workspace-mode tools");
-    expect(readme).toMatch(/46\s+management-mode\s+tools/);
-    expect(claude).toContain("85 workspace-mode tools");
-    expect(claude).toMatch(/46\s+management-mode\s+tools/);
+    expect(readme).toContain("npm run build:manifest");
+    expect(claude).toContain("npm run build:manifest");
   });
 
   it("keeps the production promote capability distinct and fail-closed", () => {

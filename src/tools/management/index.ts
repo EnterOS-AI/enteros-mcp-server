@@ -30,6 +30,11 @@ const GetWorkspaceSchema = z.object({
   workspace_id: z.string().describe("Workspace UUID"),
 });
 
+const RenameWorkspaceSchema = z.object({
+  workspace_id: z.string().uuid().describe("Workspace UUID from list_workspaces"),
+  name: z.string().trim().min(1).describe("New workspace display name"),
+});
+
 const ProvisionWorkspaceSchema = z.object({
   name: z.string().describe("Workspace name"),
   role: z.string().optional().describe("Role description"),
@@ -339,6 +344,13 @@ export async function handleListWorkspaces() {
 export async function handleGetWorkspace(args: unknown) {
   const p = validate(args, GetWorkspaceSchema);
   return toMcpResult(await mgmtGet(`/workspaces/${encodeURIComponent(p.workspace_id)}`));
+}
+
+export async function handleRenameWorkspace(args: unknown) {
+  const { workspace_id, name } = validate(args, RenameWorkspaceSchema);
+  return toMcpResult(
+    await mgmtCall("PATCH", `/workspaces/${encodeURIComponent(workspace_id)}`, { name }),
+  );
 }
 
 export async function handleProvisionWorkspace(args: unknown) {
@@ -663,6 +675,12 @@ export function registerManagementTools(srv: McpServer) {
     "Management: get one workspace's detail by UUID.",
     { workspace_id: z.string().describe("Workspace UUID") },
     handleGetWorkspace,
+  );
+  srv.tool(
+    "rename_workspace",
+    "Management: rename an existing workspace in place. Preserves its ID, files, chat history, configuration and running agent; no restart or recreation. Resolve the workspace UUID with list_workspaces first. The new name must be unique among siblings.",
+    RenameWorkspaceSchema.shape,
+    handleRenameWorkspace,
   );
   srv.tool(
     "provision_workspace",
