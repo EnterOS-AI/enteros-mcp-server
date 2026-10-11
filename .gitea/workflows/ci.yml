@@ -6,18 +6,33 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Publish tag guard self-test
+        run: bash .gitea/scripts/tests/test_publish_tag_guard.sh
+
+      - name: Package byte-provenance self-tests
+        run: |
+          bash .gitea/scripts/tests/test_package_byte_boundary.sh
+          bash .gitea/scripts/tests/test_published_artifact_provenance.sh
+          bash .gitea/scripts/tests/test_provenance_gate.sh
+          python3 .gitea/scripts/tests/test_workflow_secret_boundary.py
 
       - name: Build
         run: npm run build:manifest
@@ -31,101 +46,28 @@ jobs:
       - name: Promote request SDK SSOT sync
         run: bash .gitea/scripts/check-promote-request-vendor-sync.sh
 
-  # Publish-provenance gate (ADVISORY — continue-on-error, does NOT block merge).
+  # Required release-provenance lane. This is intentionally an ordinary
+  # fail-closed job: registry/tag drift reports a red CI status.
   #
-  # Asserts every PUBLISHED npm version of @molecule-ai/mcp-server has a
-  # matching v<version> git tag. Detects OUT-OF-BAND publishes: the Gitea npm
-  # registry accepts `npm publish` from any write:package token with no
-  # coupling to a git tag / CI run / review, so a local publish can skip the
-  # tag-triggered publish.yml entirely (1.6.0 and 1.6.1 already did this).
+  # Every published version requires a matching v<version> tag. A reviewed
+  # retroactive recovery additionally requires the exact registry tarball
+  # size/SHA-256 and exact tag -> canonical commit -> source tree mapping from
+  # contracts/published-package-provenance.json. A tag alone is deliberately
+  # not described as artifact-byte provenance.
   #
-  # ADVISORY-FIRST RATIONALE: continue-on-error means a red here does NOT block
-  # merges. The merge-queue reads required contexts from BRANCH PROTECTION
-  # (status_check_contexts), not job names, and ignores non-required
-  # continue-on-error jobs -- so this job cannot gate a merge today. This is
-  # deliberate: 1.6.0/1.6.1 are currently untagged, so a *required* check would
-  # immediately red main. The gate allowlists 1.6.0/1.6.1 (see
-  # provenance-gate.sh) so it is GREEN at introduction.
-  #
-  # PROMOTE TO REQUIRED only AFTER both land:
-  #   (1) the 1.6.x cleanup (retro-tag v1.6.0/v1.6.1 + empty the allowlist, OR
-  #       unpublish the out-of-band 1.6.x), and
-  #   (2) the publish-token lockdown (OWNER: revoke every non-CI write:package
-  #       token on org molecule-ai so the only publisher is CI's
-  #       MOL_PACKAGE_TOKEN at Infisical /ci/gitea-npm-publisher).
-  # Then remove continue-on-error here and add "CI / provenance" to branch
-  # protection's status_check_contexts (owner-only BP edit).
+  # Branch protection must include "CI / provenance" in its required contexts;
+  # that server-side setting remains the merge-enforcement SSOT.
   provenance:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Need the full v* tag history locally for the provenance comparison.
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
-      # Source the OPTIONAL read:package token from the Infisical SSOT (not a
-      # Gitea Actions secret). The token is MCP_SERVER_READPKG_TOKEN at
-      # /shared/controlplane (prod), a dedicated read:package credential for org
-      # molecule-ai. Per the no-Actions-secret / SSOT directive, the only Gitea
-      # Actions secrets used here are the documented Infisical bootstrap creds
-      # (INFISICAL_CI_CLIENT_ID / INFISICAL_CI_CLIENT_SECRET /
-      # INFISICAL_CI_PROJECT_ID) -- the same ones publish.yml and
-      # gitea-merge-queue.yml already consume.
-      #
-      # BEST-EFFORT / SKIP-LOUD: the packument endpoint is currently PUBLIC, so
-      # the read:package token is OPTIONAL and the gate runs fine without it. If
-      # the Infisical bootstrap creds are NOT wired on this repo (activation
-      # gap), we emit a ::warning:: and proceed tokenless -- we do NOT fail.
-      # Only the login-returned-empty-DESPITE-creds-present case fails closed
-      # (a real Infisical/identity fault, not an activation gap). This mirrors
-      # the creds step in molecule-controlplane's post-merge-lifecycle.yml.
-      - name: Fetch read:package token from Infisical SSOT (best-effort)
-        env:
-          INFISICAL_CI_CLIENT_ID: ${{ secrets.INFISICAL_CI_CLIENT_ID }}
-          INFISICAL_CI_CLIENT_SECRET: ${{ secrets.INFISICAL_CI_CLIENT_SECRET }}
-          INFISICAL_CI_PROJECT_ID: ${{ secrets.INFISICAL_CI_PROJECT_ID }}
-        run: |
-          set -uo pipefail
-          # SKIP-LOUD when the Infisical bootstrap creds are absent: the gate is
-          # robust against a missing token because the packument is public, so
-          # an unwired repo must still run the gate (tokenless), not fail.
-          if [ -z "${INFISICAL_CI_CLIENT_ID:-}" ] || [ -z "${INFISICAL_CI_PROJECT_ID:-}" ]; then
-            echo "::warning::provenance SKIPPED Infisical token fetch -- Infisical CI creds not wired (need INFISICAL_CI_CLIENT_ID/SECRET + INFISICAL_CI_PROJECT_ID repo secrets). Activation gap, not a failure. The gate runs tokenless against the public packument."
-            exit 0
-          fi
-          BASE="https://key.moleculesai.app"
-          TOK=$(curl -fsS -X POST "$BASE/api/v1/auth/universal-auth/login" \
-            -H 'Content-Type: application/json' \
-            -d "{\"clientId\":\"$INFISICAL_CI_CLIENT_ID\",\"clientSecret\":\"$INFISICAL_CI_CLIENT_SECRET\"}" \
-            | python3 -c 'import sys,json; v=json.load(sys.stdin).get("accessToken"); sys.stdout.write(v if isinstance(v,str) else "")')
-          # Creds were present but login returned no token -- a real Infisical /
-          # identity fault, not an activation gap. Fail closed.
-          if [ -z "$TOK" ]; then echo "::error::Infisical accessToken empty - failing closed"; exit 1; fi
-          read_secret() {
-            curl -fsS "$BASE/api/v3/secrets/raw/$1?workspaceId=$INFISICAL_CI_PROJECT_ID&environment=prod&secretPath=$2" \
-              -H "Authorization: Bearer $TOK" \
-              | python3 -c 'import json,sys; d=json.load(sys.stdin); v=(d.get("secret") or {}).get("secretValue"); print(v if isinstance(v,str) and v else "")'
-          }
-          PROVENANCE_REGISTRY_TOKEN=$(read_secret MCP_SERVER_READPKG_TOKEN %2Fshared%2Fcontrolplane)
-          if [ -z "$PROVENANCE_REGISTRY_TOKEN" ]; then
-            echo "::warning::Infisical returned empty for MCP_SERVER_READPKG_TOKEN at /shared/controlplane (prod) -- proceeding tokenless against the public packument (the read:package token is optional)."
-            exit 0
-          fi
-          echo "::add-mask::$PROVENANCE_REGISTRY_TOKEN"
-          echo "PROVENANCE_REGISTRY_TOKEN=$PROVENANCE_REGISTRY_TOKEN" >> "$GITHUB_ENV"
-          echo "read:package token loaded from Infisical SSOT (non-empty, len=${#PROVENANCE_REGISTRY_TOKEN})"
-
-      - name: Publish-provenance gate (advisory)
-        env:
-          # OPTIONAL read:package token for the Gitea npm registry, sourced from
-          # the Infisical SSOT in the step above (NOT a Gitea Actions secret).
-          # The packument endpoint is currently public, so this may be empty
-          # (best-effort) and the gate still runs. provenance-gate.sh only sends
-          # a bearer if PROVENANCE_REGISTRY_TOKEN is non-empty.
-          PROVENANCE_REGISTRY_TOKEN: ${{ env.PROVENANCE_REGISTRY_TOKEN }}
+      # The package packument and tarball are public reads. Keep pull-request CI
+      # credential-free; provenance-gate.sh fails closed on any HTTP error.
+      - name: Published tag + artifact provenance gate (required)
         run: bash .gitea/scripts/provenance-gate.sh
-
-      - name: Provenance-gate self-test
-        run: bash .gitea/scripts/tests/test_provenance_gate.sh
