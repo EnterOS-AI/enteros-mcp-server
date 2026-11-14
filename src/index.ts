@@ -29,6 +29,7 @@ import { registerDiscoveryTools } from "./tools/discovery.js";
 import { registerRemoteAgentTools } from "./tools/remote_agents.js";
 import { registerIssueTools } from "./tools/issues.js";
 import { registerRequestTools } from "./tools/requests.js";
+import { registerLightTools } from "./tools/light.js";
 import { registerManagementTools } from "./tools/management/index.js";
 
 // Re-exports so existing importers (tests, SDK consumers) keep working.
@@ -239,6 +240,23 @@ export {
   handleAddRequestMessage,
   handleCancelRequest,
 } from "./tools/requests.js";
+// Enter OS Light tools — registered in the management and default registries
+// (not self mode; see tools/light.ts).
+export {
+  registerLightTools,
+  handleLightStatus,
+  handleLightEnable,
+  handleLightDisable,
+  handleLightPark,
+  handleLightOpen,
+  handleLightRunNow,
+  handleLightRuns,
+  handleLightCreateAgent,
+  createLightAgent,
+  LIGHT_TOOL_NAMES,
+  LIGHT_TRANSIENT_CODES,
+} from "./tools/light.js";
+export type { LightFailure, LightSetupStep, CreateLightAgentInput } from "./tools/light.js";
 export { mgmtCall, mgmtGet, managementUrl } from "./tools/management/client.js";
 export {
   registerCpAdminTools,
@@ -314,6 +332,9 @@ export function createServer() {
     // and api.ts::authHeaders() emits the org API key exclusively in management
     // mode (#114), which core AdminAuth admits at Tier-2a (org-scoped token).
     registerPluginUpdateTools(srv);
+    // Enter OS Light (create, park, open and run Light agents) with the Org API
+    // Key, so the concierge and partner apps can manage Light agents.
+    registerLightTools(srv);
     return srv;
   }
 
@@ -328,6 +349,8 @@ export function createServer() {
     // already 401 on those endpoints, but a self-mode agent must not even be
     // offered a management/cross-workspace verb. This branch is BEFORE the
     // workspace-ops fan-out so none of that surface is ever registered here.
+    // That includes the Light tools: core refuses a workspace's own token on
+    // the Light management routes (403 LIGHT_SELF_FORBIDDEN).
     registerScheduleTools(srv);
     return srv;
   }
@@ -345,6 +368,7 @@ export function createServer() {
   registerRemoteAgentTools(srv);
   registerIssueTools(srv);
   registerRequestTools(srv);
+  registerLightTools(srv);
 
   return srv;
 }
@@ -447,7 +471,7 @@ async function main() {
       mode: "self",
     });
   } else {
-    logInfo("Molecule AI MCP server running on stdio (85 tools available)", { transport: "stdio", toolCount: 85 });
+    logInfo("Molecule AI MCP server running on stdio (93 tools available)", { transport: "stdio", toolCount: 93 });
   }
 }
 

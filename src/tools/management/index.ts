@@ -326,7 +326,8 @@ const GetConversationHistorySchema = z.object({
 
 const FALLBACK_PLATFORM_WORKSPACE_MODEL = "minimax/MiniMax-M2.7";
 
-function defaultProvisionWorkspaceModel(): string {
+/** The model a new workspace gets when the caller names none (also light_create_agent's). */
+export function defaultProvisionWorkspaceModel(): string {
   return (
     process.env.MOLECULE_LLM_DEFAULT_MODEL?.trim() ||
     process.env.MOLECULE_MODEL?.trim() ||

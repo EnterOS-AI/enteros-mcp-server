@@ -19,6 +19,7 @@ The highlights below are intentionally not a hand-maintained full list.
 | Memory | commit, search, delete (HMA scopes) + memory_set/get/list/delete (K/V) |
 | Plugins | list registry, list installed, install, uninstall, list sources, check compatibility |
 | Schedules | list, create, update, delete, run, get history |
+| Enter OS Light | `light_create_agent`, `light_status`, `light_enable`, `light_disable`, `light_park`, `light_open`, `light_run_now`, `light_runs` (see [Enter OS Light tools](#enter-os-light-tools)) |
 | Discovery | list peers, discover, check_access, list events, import/export, canvas viewport |
 | Requests / Inbox | `create_request`, `list_inbox`, `check_requests`, `get_request`, `respond_request`, `add_request_message`, `cancel_request` (unified Tasks + Approvals) |
 | Approvals *(deprecated)* | `list_pending_approvals`, `decide_approval`, `create_approval`, `get_workspace_approvals` — backward-compatible shims that route to the unified requests system (`kind='approval'`); prefer the Requests / Inbox tools |
@@ -139,6 +140,7 @@ because several tool names overlap).
 | Bundles | `export_bundle`, `import_bundle` |
 | Audit | `list_org_events`, `list_pending_approvals` *(deprecated shim → `/requests/pending?kind=approval`)* |
 | Compute migration | `migrate_workspace_provider`, `get_workspace_migration_status` |
+| Enter OS Light | `light_create_agent`, `light_status`, `light_enable`, `light_disable`, `light_park`, `light_open`, `light_run_now`, `light_runs` (see [Enter OS Light tools](#enter-os-light-tools)) |
 | **CP-tier (gated)** | `list_orgs`, `get_org`, `promote_to_production` |
 
 Each tool's input schema, endpoint, and request body are derived from the
@@ -238,6 +240,72 @@ workflows; this tool neither deploys nor reports completion for them.
   }
 }
 ```
+
+## Enter OS Light tools
+
+An Enter OS Light agent is a hermes agent that sleeps between its scheduled
+runs: while it is **parked** its pod is stopped and the platform runs each
+schedule as a short-lived run pod (one turn per run), so it costs no compute
+while idle. Light and 24/7 agents are different products. Choose Light for a
+known set of recurring tasks that nobody needs to chat with between runs (a
+social post every morning, an SEO scan every evening); choose an ordinary
+workspace for an agent that answers people or other agents at any time. Light
+v1 runs hermes agents on Kubernetes tenants only.
+
+The REST contract is molecule-core `docs/api-protocol/light-api.md`. The tools
+are registered in the default registry and in the management registry. Self
+mode does not offer them: core refuses a workspace's own token on the Light
+management routes (`403 LIGHT_SELF_FORBIDDEN`).
+
+| Tool | Route | What it does |
+|------|-------|--------------|
+| `light_create_agent` | `POST /workspaces`, then the steps below | Creates a Light agent with its schedules and returns once it is parked |
+| `light_status` | `GET /workspaces/{id}/light` | `light_state` (`null` for a 24/7 agent, `open`, `parking`, `parked`, `opening`), `last_error`, and the schedules of the last park with `next_run_at` |
+| `light_enable` | `POST /workspaces/{id}/light/enable` | Makes a hermes workspace a Light agent; it restarts |
+| `light_disable` | `POST /workspaces/{id}/light/disable` | Back to a 24/7 agent from any state; run history is kept |
+| `light_park` | `POST /workspaces/{id}/light/park` | `202` parking; poll `light_status` until `parked` |
+| `light_open` | `POST /workspaces/{id}/light/open` | `202` opening; poll until `open` |
+| `light_run_now` | `POST /workspaces/{id}/light/run` with `{schedule}` | Runs one schedule of a parked agent now |
+| `light_runs` | `GET /workspaces/{id}/light/runs?limit=&schedule=&before=` | Runs, newest first; pass `next_before` back as `before` |
+
+A parked agent refuses chat, delegation and restarts with
+`409 LIGHT_AGENT_PARKED`: open it first. Editing a Light agent's schedules needs
+it open: `light_open`, wait for `open`, change them with `create_schedule`,
+`update_schedule` or `delete_schedule`, then `light_park`. An open agent parks
+itself after 30 minutes without activity.
+
+**`light_create_agent`** takes `name`, `schedules` (1 to 100 of
+`{name, cron, timezone, prompt, enabled?}`; names are unique lowercase slugs,
+crons have five fields, prompts are at most 16 KiB; these are checked before
+anything is created), and optionally `model` (omitted: the platform default
+model, as for `provision_workspace`), `secrets` (stored encrypted at creation)
+and `timeout_seconds` (60 to 3600, default 1800). It creates the workspace with
+`runtime: "hermes"`, waits until it is online, creates the schedules, enables
+Light, waits for the restart that applies Light and for the agent to be online
+and idle, parks it and waits until it is `parked`. It returns the workspace id,
+the model and the parked agent's `GET /light` answer; the create answer's
+workspace token is never returned. It retries `LIGHT_TRANSITION_IN_PROGRESS`,
+`LIGHT_AGENT_BUSY`, `LIGHT_AGENT_NOT_AWAKE`, `LIGHT_AGENT_AWAKE` and any 503
+(honouring `Retry-After`) with backoff from 2 s doubling to 30 s, and a park
+undone after its 202 because the agent was busy, within the time limit. Any
+other failure returns core's code and message plus `step`, and once the
+workspace exists its `workspace_id` and a `note`: the workspace is kept, not
+deleted. When the caller sends an MCP `progressToken`, each step is reported as
+a progress notification.
+
+**Errors.** A refusal is an MCP error carrying core's body unchanged (`error`,
+`code` and its named extras such as `light_state`, `status`, `active_tasks`,
+`is_busy`, `invalid`, `run_id`) plus `http_status`, and `retry_after_seconds`
+when the platform sent `Retry-After`. In a refusal, `status` is core's extra
+(the workspace's status), not the HTTP status. Branch on `code`. A body without
+a code gets `AUTH_ERROR` (401/403), `RATE_LIMITED` (429) or `PLATFORM_ERROR`.
+`light_create_agent` adds `LIGHT_SETUP_TIMEOUT` (a wait ran out of time),
+`LIGHT_SETUP_AGENT_FAILED` (the agent failed, was paused or removed) and
+`CANCELLED`.
+
+**Credentials.** In management mode the Light tools send the Org API Key
+(`MOLECULE_ORG_API_KEY` with `X-Molecule-Org-Id`) like the other management
+tools; in the default registry they send `MOLECULE_API_KEY`.
 
 ## Remote Agents (Phase 30)
 

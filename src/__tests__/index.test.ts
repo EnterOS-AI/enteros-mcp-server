@@ -1212,12 +1212,19 @@ describe("createServer()", () => {
   // and each tool() call is recorded by the mocked McpServer above. If a
   // future PR adds a tool file but forgets to call its registerXxxTools
   // from createServer(), this count drops and the test fails. We assert
-  // the concrete current tool count (85) rather than a lower bound so a
+  // the concrete current tool count (93) rather than a lower bound so a
   // silently-dropped handler is also caught.
   test("registers all tools (count is stable across registerXxxTools wiring)", () => {
     const server = createServer() as unknown as { registeredToolNames: string[] };
     const names = server.registeredToolNames;
-    expect(names.length).toBe(85);
+    expect(names.length).toBe(93);
+    // Enter OS Light tools (registerLightTools) are wired into the default surface.
+    for (const light of [
+      "light_create_agent", "light_status", "light_enable", "light_disable",
+      "light_park", "light_open", "light_run_now", "light_runs",
+    ]) {
+      expect(names).toContain(light);
+    }
     // create_issue (Gitea bug-filing) must be wired into the default surface.
     expect(names).toContain("create_issue");
     // Unified requests/inbox tools (RFC P2) — all 7 wired into the surface.
