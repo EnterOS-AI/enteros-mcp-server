@@ -288,6 +288,27 @@ from synchronous HTTP 200 exact immutable tenant-fleet evidence.
 | `run_schedule` | Fire a schedule manually, bypassing its cron expression |
 | `get_schedule_history` | Get past runs of a schedule — status, start/end, output |
 
+### Enter OS Light Tools (8) — also in management mode
+`src/tools/light.ts` follows molecule-core `docs/api-protocol/light-api.md`. The
+tools are registered in the default and management registries, never in self
+mode (core refuses a workspace's own token on the Light management routes).
+Management mode sends the Org API Key through `managementHeaders()`; the default
+registry sends `authHeaders()`. A refusal returns core's error body unchanged
+plus `http_status`. Supplied values enter a path only through
+`lightPathSegment()` (the workspace id only as a canonical UUID), and every
+request path passes `api.ts::unsafePlatformPathReason()` before it is sent.
+
+| Tool | Description |
+|------|-------------|
+| `light_create_agent` | Create a hermes Light agent with its schedules and park it (one call, several minutes) |
+| `light_status` | Get a Light agent's `light_state`, `last_error` and the schedules of its last park |
+| `light_enable` | Make a hermes workspace a Light agent (it restarts) |
+| `light_disable` | Turn a Light agent back into a 24/7 agent |
+| `light_park` | Park an open Light agent; its schedules run without it |
+| `light_open` | Wake a parked Light agent for chat or schedule edits |
+| `light_run_now` | Run one schedule of a parked Light agent now |
+| `light_runs` | List a Light agent's runs, paged by `next_before` |
+
 ### Discovery Tools (12)
 | Tool | Description |
 |------|-------------|

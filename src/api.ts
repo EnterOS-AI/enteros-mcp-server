@@ -176,7 +176,18 @@ export type PlatformQuery =
   | URLSearchParams
   | Record<string, string | number | boolean | undefined>;
 
-function platformRequestUrl(path: string, query?: PlatformQuery): string {
+/**
+ * Why `path` must not be sent as a platform API path, or undefined when it may:
+ * it has to be an absolute pathname on the configured origin (no `//`
+ * authority, backslash, query or fragment), every segment has to
+ * percent-decode, and no segment may decode to `.` or `..` (also behind an
+ * encoded `/` or `\`, so `%2e%2e` and `x%2f..` count) or carry a control
+ * character. URL normalization would otherwise resolve the dot segment and
+ * retarget the request (`/workspaces/{id}/x/..` becomes `/workspaces/{id}`).
+ * Exported so modules that make their own requests (tools/light.ts) refuse
+ * exactly the paths apiCall refuses.
+ */
+export function unsafePlatformPathReason(path: string): string | undefined {
   if (
     !path.startsWith("/")
     || path.startsWith("//")
@@ -184,9 +195,7 @@ function platformRequestUrl(path: string, query?: PlatformQuery): string {
     || path.includes("?")
     || path.includes("#")
   ) {
-    throw new InvalidPlatformPathError(
-      "platform API path must be an absolute pathname on the configured origin"
-    );
+    return "platform API path must be an absolute pathname on the configured origin";
   }
 
   for (const rawSegment of path.split("/")) {
@@ -194,17 +203,23 @@ function platformRequestUrl(path: string, query?: PlatformQuery): string {
     try {
       decoded = decodeURIComponent(rawSegment);
     } catch {
-      throw new InvalidPlatformPathError("platform API path contains invalid percent encoding");
+      return "platform API path contains invalid percent encoding";
     }
     const decodedParts = decoded.replaceAll("\\", "/").split("/");
     if (
       decodedParts.some((part) => part === "." || part === "..")
       || [...decoded].some((char) => char.charCodeAt(0) < 32)
     ) {
-      throw new InvalidPlatformPathError(
-        "platform API path contains an unsafe dot or control segment"
-      );
+      return "platform API path contains an unsafe dot or control segment";
     }
+  }
+  return undefined;
+}
+
+function platformRequestUrl(path: string, query?: PlatformQuery): string {
+  const unsafe = unsafePlatformPathReason(path);
+  if (unsafe !== undefined) {
+    throw new InvalidPlatformPathError(unsafe);
   }
 
   const searchParams = query instanceof URLSearchParams

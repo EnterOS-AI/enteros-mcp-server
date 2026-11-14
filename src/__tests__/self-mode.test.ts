@@ -373,6 +373,10 @@ describe("(c) self mode registers only the schedule tools", () => {
       "write_file",
       "create_issue",
       "create_request",
+      // Light management routes refuse a workspace's own token.
+      "light_create_agent",
+      "light_park",
+      "light_status",
     ]) {
       expect(srv.registeredToolNames).not.toContain(forbidden);
     }

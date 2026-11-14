@@ -61,9 +61,11 @@ export { selfWorkspaceId } from "../../utils/context.js";
 /**
  * Build the auth headers for a tenant-host request. Returns an ApiError
  * (never throws) when the Org API Key is absent so the tool surfaces a clean
- * AUTH_ERROR instead of a confusing upstream 401.
+ * AUTH_ERROR instead of a confusing upstream 401. Exported for the tool
+ * modules that run their own requests in management mode (tools/light.ts), so
+ * the org credential is read in this one place.
  */
-function managementHeaders(): Record<string, string> | ApiError {
+export function managementHeaders(): Record<string, string> | ApiError {
   const tok = process.env.MOLECULE_ORG_API_KEY;
   if (!tok) {
     return {

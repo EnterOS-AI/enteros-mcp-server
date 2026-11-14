@@ -106,11 +106,18 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "management";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names).toHaveLength(55); // 47 management + 6 schedule + 2 plugin-update verbs
+    expect(names).toHaveLength(63); // 47 management + 6 schedule + 2 plugin-update + 8 Light verbs
     expect(new Set(names).size).toBe(names.length); // no duplicate registrations
     expect(names).toContain("provision_workspace");
     expect(names).toContain("rename_workspace");
     expect(names).toContain("promote_to_production");
+    // Enter OS Light: the concierge creates and manages Light agents.
+    for (const verb of [
+      "light_create_agent", "light_status", "light_enable", "light_disable",
+      "light_park", "light_open", "light_run_now", "light_runs",
+    ]) {
+      expect(names).toContain(verb);
+    }
     // Cross-workspace schedule management (org key) is part of the management surface.
     for (const verb of [
       "create_schedule", "update_schedule", "delete_schedule",
@@ -130,9 +137,10 @@ describe("enumeration source (createServer registrations)", () => {
     process.env.MOLECULE_MCP_MODE = "";
     const srv = createServer() as unknown as { registeredToolNames: string[] };
     const names = srv.registeredToolNames;
-    expect(names).toHaveLength(85);
+    expect(names).toHaveLength(93); // 85 + the 8 Light verbs
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain("chat_with_agent");
+    expect(names).toContain("light_create_agent");
     expect(names).not.toContain("list_channels");
     expect(names).not.toContain("add_channel");
     expect(names).not.toContain("test_channel");
