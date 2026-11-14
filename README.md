@@ -307,6 +307,14 @@ a code gets `AUTH_ERROR` (401/403), `RATE_LIMITED` (429) or `PLATFORM_ERROR`.
 (`MOLECULE_ORG_API_KEY` with `X-Molecule-Org-Id`) like the other management
 tools; in the default registry they send `MOLECULE_API_KEY`.
 
+**Paths.** The only supplied value that enters a request path is the workspace
+id, and only as a canonical (lowercase) UUID; schedule names travel in request
+bodies and query strings. A value bound for a path is refused when it is empty,
+`.` or `..`, contains `/`, `\` or a control character, or is over 128 bytes,
+and is percent-encoded otherwise. Every request path is checked before it is
+sent, and one holding a dot segment (`.`, `..` or a `%2e` form) is refused with
+`INVALID_ARGUMENTS` instead of being normalized into another route.
+
 ## Remote Agents (Phase 30)
 
 For agents running outside the platform's Docker network, the `get_remote_agent_setup_command`

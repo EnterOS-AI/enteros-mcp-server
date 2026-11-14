@@ -46,6 +46,8 @@ import {
   handleLightRunNow,
   handleLightRuns,
   handleLightStatus,
+  lightPathSegment,
+  lightRequest,
   registerLightTools,
   type LightClock,
 } from "../tools/light.js";
@@ -388,13 +390,115 @@ describe("request mapping (workspace mode: MOLECULE_API_KEY)", () => {
 // input validation
 // =============================================================================
 
-describe("input validation (before any request)", () => {
-  it.each(["../other", "w1", "", `${WS}/light`])("rejects workspace_id %p", async (workspace_id) => {
+// =============================================================================
+// path safety: no request path is built from an unvalidated value
+// =============================================================================
+
+const ROUTE_TOOLS: Array<[string, (args: unknown) => Promise<unknown>, Record<string, unknown>]> = [
+  ["light_status", handleLightStatus, {}],
+  ["light_enable", handleLightEnable, {}],
+  ["light_disable", handleLightDisable, {}],
+  ["light_park", handleLightPark, {}],
+  ["light_open", handleLightOpen, {}],
+  ["light_run_now", handleLightRunNow, { schedule: "daily-report" }],
+  ["light_runs", handleLightRuns, {}],
+];
+
+// Path traversal, encoded dots and slashes, control characters, and ids that
+// are UUIDs but not canonical (core requires the lowercase form).
+const MALICIOUS_WORKSPACE_IDS = [
+  "",
+  ".",
+  "..",
+  "%2e%2e",
+  "../other",
+  `${WS}/..`,
+  `${WS}/../../admin`,
+  `${WS}%2f..`,
+  `${WS}\\..`,
+  `${WS}/light`,
+  `${WS}\u0000`,
+  `${WS}\n`,
+  ` ${WS}`,
+  WS.toUpperCase(),
+  "w1",
+  "a".repeat(129),
+];
+
+describe.each(ROUTE_TOOLS)("%s accepts only a canonical workspace UUID", (_tool, handler, extra) => {
+  it.each(MALICIOUS_WORKSPACE_IDS)("refuses workspace_id %p and sends no request", async (workspace_id) => {
     const t = scriptTenant(HOST, []);
-    await expect(handleLightStatus({ workspace_id })).rejects.toThrow();
+    await expect(handler({ workspace_id, ...extra })).rejects.toThrow(/workspace_id/);
+    expect(t.fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("lightPathSegment: the one way a supplied value enters a path", () => {
+  it.each([
+    "",
+    ".",
+    "..",
+    "a/b",
+    "/",
+    "a\\b",
+    "\\",
+    "a\u0000b",
+    "a\u001fb",
+    "a\u007fb",
+    "a\u0085b",
+    "a".repeat(129),
+    "é".repeat(65), // 130 bytes
+  ])("refuses %p", (value) => {
+    expect(() => lightPathSegment(value, "schedule")).toThrow(/schedule/);
+  });
+
+  it("encodes an accepted value as a single segment", () => {
+    expect(lightPathSegment("daily-report", "schedule")).toBe("daily-report");
+    expect(lightPathSegment("daily report?#%", "schedule")).toBe("daily%20report%3F%23%25");
+    expect(lightPathSegment("a".repeat(128), "schedule")).toBe("a".repeat(128));
+    // Encoded, an encoded dot is no longer a dot segment.
+    expect(lightPathSegment("%2e%2e", "schedule")).toBe("%252e%252e");
+  });
+});
+
+describe("lightRequest refuses a path with a dot segment before it is sent", () => {
+  it.each([
+    `/workspaces/${WS}/schedules/..`,
+    `/workspaces/${WS}/schedules/.`,
+    `/workspaces/${WS}/./light`,
+    `/workspaces/${WS}/schedules/%2e%2e`,
+    `/workspaces/${WS}/schedules/%2E%2E`,
+    `/workspaces/${WS}/schedules/.%2e`,
+    `/workspaces/${WS}/schedules/%2e.`,
+    `/workspaces/${WS}/%2e/light`,
+    `/workspaces/${WS}/x%2f..%2f..`,
+    `/workspaces/${WS}/x%5c..`,
+    `/workspaces/${WS}\\..`,
+    `/workspaces/${WS}/\u0001`,
+    `/workspaces/${WS}/%zz`,
+    `workspaces/${WS}/light`,
+    `//evil.example/workspaces/${WS}`,
+    `/workspaces/${WS}/light?x=1`,
+    `/workspaces/${WS}/light#x`,
+  ])("refuses %p", async (path) => {
+    const t = scriptTenant(HOST, []);
+    const answer = await lightRequest("POST", path);
+    expect(answer).toMatchObject({
+      ok: false,
+      failure: { error: "Invalid platform API path", code: "INVALID_ARGUMENTS" },
+    });
     expect(t.fetchMock).not.toHaveBeenCalled();
   });
 
+  it("sends a clean path (control)", async () => {
+    const t = scriptTenant(HOST, [{ method: "GET", path: `/workspaces/${WS}/light`, status: 200, json: LIGHT_PARKED }]);
+    await expect(lightRequest("GET", `/workspaces/${WS}/light`)).resolves.toMatchObject({ ok: true });
+    expect(t.problems).toEqual([]);
+    expect(t.fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("input validation (before any request)", () => {
   it.each([0, 101, 2.5])("light_runs rejects limit %p", async (limit) => {
     const t = scriptTenant(HOST, []);
     await expect(handleLightRuns({ workspace_id: WS, limit })).rejects.toThrow();
@@ -790,6 +894,20 @@ describe("light_create_agent flow", () => {
     expect(t.left()).toBe(0);
     expect(out).toEqual({ ...refusal, http_status: 422, step: "create" });
   });
+
+  it.each(["../../admin", `${WS}/..`, `${WS}%2f..`, WS.toUpperCase(), "", 42])(
+    "never builds a path from a create answer whose id is not a canonical UUID: %p",
+    async (id) => {
+      const t = scriptTenant(HOST, [
+        { method: "POST", path: "/workspaces", status: 201, json: { id, status: "provisioning" } },
+      ]);
+      const out = await createLightAgent(INPUT, { clock: fakeClock().clock });
+      expect(t.problems).toEqual([]);
+      expect(t.seen).toHaveLength(1); // only the create; nothing addressed with that id
+      expect(out).toMatchObject({ code: "PLATFORM_ERROR", step: "create", http_status: 201 });
+      expect(out).not.toHaveProperty("workspace_id");
+    },
+  );
 
   it("uses the platform default model when none is given", async () => {
     process.env.MOLECULE_LLM_DEFAULT_MODEL = "minimax/MiniMax-M3";

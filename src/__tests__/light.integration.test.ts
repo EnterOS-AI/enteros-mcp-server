@@ -117,6 +117,9 @@ describe("Light tools through the real MCP transport", () => {
 
   it.each([
     ["light_status", { workspace_id: "../other" }],
+    ["light_park", { workspace_id: `${ws}/..` }],
+    ["light_open", { workspace_id: ws.toUpperCase() }],
+    ["light_run_now", { workspace_id: "%2e%2e", schedule: "daily-report" }],
     ["light_runs", { workspace_id: ws, limit: 0 }],
     ["light_create_agent", { name: "x", schedules: [] }],
   ])("%s validates its arguments before any request: %p", async (name, args) => {

@@ -294,7 +294,9 @@ tools are registered in the default and management registries, never in self
 mode (core refuses a workspace's own token on the Light management routes).
 Management mode sends the Org API Key through `managementHeaders()`; the default
 registry sends `authHeaders()`. A refusal returns core's error body unchanged
-plus `http_status`.
+plus `http_status`. Supplied values enter a path only through
+`lightPathSegment()` (the workspace id only as a canonical UUID), and every
+request path passes `api.ts::unsafePlatformPathReason()` before it is sent.
 
 | Tool | Description |
 |------|-------------|

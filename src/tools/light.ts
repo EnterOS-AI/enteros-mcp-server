@@ -26,14 +26,21 @@
  * `status` in a refusal is core's extra (the workspace's status), never the
  * HTTP status. An error body without a code gets AUTH_ERROR (401/403),
  * RATE_LIMITED (429) or PLATFORM_ERROR, keeping the platform's sentence.
+ *
+ * PATHS. No request path is built from an unvalidated value. The only supplied
+ * value that enters a path is the workspace id, and only as a canonical
+ * (lowercase) UUID, through lightPathSegment; schedule names travel in bodies
+ * and query strings. Every request path then passes api.ts's
+ * unsafePlatformPathReason before it is sent, so a dot segment (`.`, `..`, or a
+ * `%2e` form) is refused instead of being normalized into another route.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { PLATFORM_URL, authHeaders, isApiError, toMcpResult } from "../api.js";
+import { PLATFORM_URL, authHeaders, isApiError, toMcpResult, unsafePlatformPathReason } from "../api.js";
 import { isManagementMode } from "../mode.js";
 import { error as logError } from "../utils/logger.js";
-import { validate } from "../utils/validation.js";
+import { InvalidArgumentsError, validate } from "../utils/validation.js";
 import { managementHeaders, managementUrl } from "./management/client.js";
 import { defaultProvisionWorkspaceModel } from "./management/index.js";
 
@@ -82,6 +89,10 @@ const MAX_SCHEDULE_NAME = 128;
 const MAX_CRON = 128;
 const MAX_PROMPT_BYTES = 16_384;
 const SCHEDULE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** Most bytes a supplied value may take as one path segment. */
+const MAX_PATH_SEGMENT_BYTES = 128;
+/** C0 controls, DEL and C1 controls. */
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 
 /** A Light tool's failure: core's error body unchanged, plus where it came from. */
 export type LightFailure = {
@@ -228,12 +239,25 @@ interface LightRequestOptions {
 
 const CANCELLED_FAILURE: LightFailure = { error: "the call was cancelled", code: "CANCELLED" };
 
-/** One request to the tenant. Never throws. */
-async function lightRequest(
+/**
+ * One request to the tenant; the only place these tools send one. Never throws.
+ * A path that is not a safe absolute pathname (a dot segment such as `..` or
+ * `%2e%2e`, an encoded `/` or `\` hiding one, a control character, a query or
+ * fragment) is refused before anything is sent. Exported for tests.
+ */
+export async function lightRequest(
   method: "GET" | "POST",
   path: string,
   opts: LightRequestOptions = {},
 ): Promise<Answer> {
+  const unsafe = unsafePlatformPathReason(path);
+  if (unsafe !== undefined) {
+    return {
+      ok: false,
+      failure: { error: "Invalid platform API path", code: "INVALID_ARGUMENTS", detail: unsafe },
+      network: false,
+    };
+  }
   if (opts.signal?.aborted) return { ok: false, failure: { ...CANCELLED_FAILURE }, network: false };
   const conn = connection();
   if (!conn.ok) return { ok: false, failure: conn.failure, network: false };
@@ -299,8 +323,36 @@ async function lightRequest(
   return { ok: true, status, body: json.value };
 }
 
-const lightPath = (workspaceId: string, route?: string) =>
-  `/workspaces/${encodeURIComponent(workspaceId)}/light${route ? `/${route}` : ""}`;
+/**
+ * The one way a caller- or server-supplied value enters a request path. Refuses
+ * '', '.', '..', any '/' or '\', control characters and anything over 128 bytes
+ * (INVALID_ARGUMENTS, so nothing is sent), then percent-encodes the value as a
+ * single segment.
+ */
+export function lightPathSegment(value: string, what: string): string {
+  let reason: string | undefined;
+  if (value === "" || value === "." || value === "..") reason = "must not be empty, '.' or '..'";
+  else if (value.includes("/") || value.includes("\\")) reason = "must not contain '/' or '\\'";
+  else if (CONTROL_CHARS.test(value)) reason = "must not contain control characters";
+  else if (Buffer.byteLength(value, "utf8") > MAX_PATH_SEGMENT_BYTES) {
+    reason = `must be at most ${MAX_PATH_SEGMENT_BYTES} bytes`;
+  }
+  if (reason !== undefined) throw new InvalidArgumentsError([`${what}: ${reason}`]);
+  return encodeURIComponent(value);
+}
+
+/** A workspace id as a path segment: a canonical (lowercase) UUID, nothing else. */
+function workspaceSegment(workspaceId: string): string {
+  if (!UUID_RE.test(workspaceId)) {
+    throw new InvalidArgumentsError(["workspace_id: must be a canonical workspace UUID (lowercase)"]);
+  }
+  return lightPathSegment(workspaceId, "workspace_id");
+}
+
+type LightRoute = "enable" | "disable" | "park" | "open" | "run" | "runs";
+
+const lightPath = (workspaceId: string, route?: LightRoute) =>
+  `/workspaces/${workspaceSegment(workspaceId)}/light${route ? `/${route}` : ""}`;
 
 /** Core's answer unchanged on success; the LightFailure (an MCP error) otherwise. */
 function toResult(answer: Answer) {
@@ -311,9 +363,10 @@ function toResult(answer: Answer) {
 // Schemas
 // ---------------------------------------------------------------------------
 
+// Core accepts only the canonical form, and the id goes into the request path.
 const workspaceId = z
   .string()
-  .uuid()
+  .regex(UUID_RE, "must be a canonical workspace UUID (lowercase)")
   .describe("Workspace UUID of the Light agent (from list_workspaces or light_create_agent).");
 
 const WorkspaceArgs = z.object({ workspace_id: workspaceId });
@@ -583,16 +636,19 @@ class CreateLightAgentFlow {
     // workspace's own token (auth_token), which is never kept or returned.
     const created = await this.request("POST", "/workspaces", createBody);
     if (!created.ok) return this.fail(created.failure);
+    // The id goes into every later path, so only a canonical UUID is used.
     const id = isObject(created.body) ? created.body.id : undefined;
     if (typeof id !== "string" || !UUID_RE.test(id)) {
       return this.fail({
-        error: "the workspace create answer carries no workspace id",
+        error:
+          "the workspace create answer carries no canonical workspace id, so nothing was sent with it; " +
+          "the workspace may exist: look for it with list_workspaces",
         code: "PLATFORM_ERROR",
         http_status: created.status,
       });
     }
     this.workspaceId = id;
-    const wsPath = `/workspaces/${encodeURIComponent(id)}`;
+    const wsPath = `/workspaces/${workspaceSegment(id)}`;
 
     this.enter("wait-online");
     const online = await this.waitForWorkspace(wsPath, "the agent online", isAwake);
