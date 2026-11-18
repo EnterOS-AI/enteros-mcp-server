@@ -925,6 +925,80 @@ describe("light_create_agent flow", () => {
     expect(out).toMatchObject({ error: "boom", code: "PLATFORM_ERROR", http_status: 500, step: "create" });
   });
 
+  it("without MOLECULE_LLM_DEFAULT_MODEL, uses the tenant's default_model for hermes", async () => {
+    process.env.MOLECULE_MODEL = "minimax/MiniMax-M2.7"; // the concierge's own model: never a member's default
+    const t = scriptTenant(HOST, [
+      {
+        method: "GET",
+        path: "/admin/llm/offered-models?runtime=hermes",
+        status: 200,
+        json: { runtime: "hermes", default_model: "google/gemini-4-hydrogen", models: [] },
+      },
+      {
+        method: "POST",
+        path: "/workspaces",
+        body: { name: "seo", runtime: "hermes", model: "google/gemini-4-hydrogen" },
+        status: 500,
+        json: { error: "boom" },
+      },
+    ]);
+    const out = await createLightAgent({ name: "seo", schedules: [SOCIAL] }, { clock: fakeClock().clock });
+    expect(t.problems).toEqual([]);
+    expect(t.left()).toBe(0);
+    expect(out).toMatchObject({ error: "boom", step: "create" });
+    for (const s of t.seen) expect(s.headers.Authorization).toBe(`Bearer ${ORG_KEY}`);
+  });
+
+  it.each([
+    ["no default_model", { status: 200, json: { runtime: "hermes", models: [] } }, "names no default_model"],
+    ["an unreadable default", { status: 503, json: { error: "provider registry unavailable" } }, "HTTP 503"],
+  ])("fails with INVALID_ARGUMENTS and creates nothing on %s", async (_label, answer, why) => {
+    process.env.MOLECULE_MODEL = "minimax/MiniMax-M2.7";
+    const t = scriptTenant(HOST, [
+      { method: "GET", path: "/admin/llm/offered-models?runtime=hermes", ...answer },
+    ]);
+    const out = await createLightAgent({ name: "seo", schedules: [SOCIAL] }, { clock: fakeClock().clock });
+    expect(t.problems).toEqual([]);
+    expect(t.seen).toHaveLength(1); // the lookup only: no POST /workspaces
+    expect(out).toMatchObject({ code: "INVALID_ARGUMENTS", step: "create" });
+    expect(String(out.error)).toContain(why);
+    expect(String(out.error)).toContain("Nothing was created");
+    expect(out).not.toHaveProperty("workspace_id");
+  });
+
+  it("returns CANCELLED, creating nothing, when cancelled before the default is looked up", async () => {
+    const ctl = new AbortController();
+    ctl.abort();
+    const t = scriptTenant(HOST, []);
+    const out = await createLightAgent(
+      { name: "seo", schedules: [SOCIAL] },
+      { clock: fakeClock().clock, signal: ctl.signal },
+    );
+    expect(t.problems).toEqual([]);
+    expect(t.seen).toHaveLength(0);
+    expect(out).toEqual({ error: "the call was cancelled", code: "CANCELLED", step: "create" });
+  });
+
+  it("returns CANCELLED, creating nothing, when cancelled while the default is looked up", async () => {
+    const ctl = new AbortController();
+    const t = scriptTenant(HOST, [
+      {
+        method: "GET",
+        path: "/admin/llm/offered-models?runtime=hermes",
+        status: 200,
+        json: { default_model: "google/gemini-4-hydrogen" },
+        onServe: () => ctl.abort(),
+      },
+    ]);
+    const out = await createLightAgent(
+      { name: "seo", schedules: [SOCIAL] },
+      { clock: fakeClock().clock, signal: ctl.signal },
+    );
+    expect(t.problems).toEqual([]);
+    expect(t.seen).toHaveLength(1); // the lookup; the create was never sent
+    expect(out).toMatchObject({ code: "CANCELLED", step: "create" });
+  });
+
   it("fails fast when the agent fails while booting", async () => {
     const t = scriptTenant(HOST, [
       { method: "POST", path: "/workspaces", status: 201, json: CREATED },

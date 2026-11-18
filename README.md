@@ -152,6 +152,17 @@ Blank names are rejected, and a sibling name collision returns a conflict
 instead of silently picking another name. The default workspace registry
 offers the same operation through `update_workspace`.
 
+`provision_workspace` sends the caller's `model` when one is given. Without
+one, a templated create sends no model, so core applies the template's declared
+model. Any other create, or a template that declares no model (core answers
+`422 MODEL_REQUIRED` before storing anything), gets the platform default:
+`MOLECULE_LLM_DEFAULT_MODEL`, else `default_model` from
+`GET /admin/llm/offered-models?runtime=<runtime>`. With neither, the call fails
+with `INVALID_ARGUMENTS` and creates nothing. The server never picks a model of
+its own, and the concierge's own `MOLECULE_MODEL`/`MODEL` is not a member's
+default. A runtime the tenant's model registry does not know (`404 unknown
+runtime`, such as `external`) is created without a model.
+
 The authoritative routes and validation live in the
 canonical tenant router/handler source
 (`molecule-core/workspace-server/internal/router/router.go` +
@@ -217,6 +228,7 @@ workflows; this tool neither deploys nor reports completion for them.
 | `MOLECULE_ORG_API_KEY` | Yes | Org API Key (full-tenant-admin; see security note) |
 | `MOLECULE_ORG_ID` | Yes | Org id for the `X-Molecule-Org-Id` tenant-guard header |
 | `MOLECULE_ORG_SLUG` | No | Optional `X-Molecule-Org-Slug` header |
+| `MOLECULE_LLM_DEFAULT_MODEL` | No | The platform default model for a workspace created without a model (core sets it on a concierge). Unset: the tenant's `default_model` from `GET /admin/llm/offered-models` |
 | `CP_ADMIN_API_TOKEN` | No | Generic CP admin bearer for CP reads, provider migration, and staging promote; never used for production promote |
 | `CP_PROMOTE_PROD_API_TOKEN` | No | Dedicated production `POST /cp/admin/promote` capability; required for production plans and wet rollouts |
 | `MOLECULE_CP_URL` | No | Control-plane base URL (default `https://api.moleculesai.app`) |
@@ -278,7 +290,9 @@ itself after 30 minutes without activity.
 `{name, cron, timezone, prompt, enabled?}`; names are unique lowercase slugs,
 crons have five fields, prompts are at most 16 KiB; these are checked before
 anything is created), and optionally `model` (omitted: the platform default
-model, as for `provision_workspace`), `secrets` (stored encrypted at creation)
+model for hermes, as for `provision_workspace`; `INVALID_ARGUMENTS` with
+`step: "create"` and nothing created when there is none), `secrets` (stored
+encrypted at creation)
 and `timeout_seconds` (60 to 3600, default 1800). It creates the workspace with
 `runtime: "hermes"`, waits until it is online, creates the schedules, enables
 Light, waits for the restart that applies Light and for the agent to be online

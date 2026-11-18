@@ -307,7 +307,8 @@ describe("workspace lifecycle tools", () => {
   it("provision_workspace POSTs to /workspaces with the supplied fields", async () => {
     const f = mockFetch({ id: "w-new" });
     global.fetch = f as unknown as typeof fetch;
-    await mgmtProvisionWorkspace({ name: "Researcher", runtime: "claude-code", tier: 2 });
+    await mgmtProvisionWorkspace({ name: "Researcher", runtime: "claude-code", tier: 2, model: "google/gemini-4-hydrogen" });
+    expect(f).toHaveBeenCalledTimes(1);
     const { url, init } = lastCall(f);
     expect(url).toBe(`${HOST}/workspaces`);
     expect(init.method).toBe("POST");
@@ -315,7 +316,7 @@ describe("workspace lifecycle tools", () => {
     expect(body.name).toBe("Researcher");
     expect(body.runtime).toBe("claude-code");
     expect(body.tier).toBe(2);
-    expect(body.model).toBe("minimax/MiniMax-M2.7");
+    expect(body.model).toBe("google/gemini-4-hydrogen");
   });
 
   it("provision_workspace uses MOLECULE_LLM_DEFAULT_MODEL when model is omitted", async () => {
@@ -1192,5 +1193,169 @@ describe("path segment escaping", () => {
     global.fetch = f as unknown as typeof fetch;
     await handleGetWorkspace({ workspace_id: "w1" });
     expect(lastCall(f).url).toBe(`${HOST}/workspaces/w1`);
+  });
+});
+
+// =============================================================================
+// provision_workspace: the model of a workspace nobody named one for
+// =============================================================================
+
+describe("provision_workspace default model (never a vendor model the platform did not choose)", () => {
+  type Route = { status: number; json: unknown };
+  const OFFERED = "/admin/llm/offered-models";
+
+  /** A tenant that answers each `METHOD path` from its own queue and records every request. */
+  function tenant(routes: Record<string, Route[]>) {
+    const seen: Array<{ method: string; path: string; body: unknown }> = [];
+    const f = jest.fn(async (url: string, init: RequestInit = {}) => {
+      const method = String(init.method ?? "GET");
+      const path = url.startsWith(HOST) ? url.slice(HOST.length) : url;
+      seen.push({ method, path, body: init.body === undefined ? undefined : JSON.parse(String(init.body)) });
+      const route = routes[`${method} ${path}`]?.shift() ?? { status: 599, json: { error: "unexpected request" } };
+      return {
+        ok: route.status >= 200 && route.status < 300,
+        status: route.status,
+        headers: { get: () => null },
+        text: jest.fn().mockResolvedValue(JSON.stringify(route.json)),
+      };
+    });
+    global.fetch = f as unknown as typeof fetch;
+    return {
+      seen,
+      requests: () => seen.map((s) => `${s.method} ${s.path}`),
+      posts: () => seen.filter((s) => s.method === "POST"),
+    };
+  }
+  const modelRequired = (runtime: string): Route => ({
+    status: 422,
+    json: { error: "model is required and has no platform-side default", runtime, template: "t", code: "MODEL_REQUIRED" },
+  });
+
+  it("uses MOLECULE_LLM_DEFAULT_MODEL without asking the tenant", async () => {
+    process.env.MOLECULE_LLM_DEFAULT_MODEL = "google/gemini-4-hydrogen";
+    const t = tenant({ "POST /workspaces": [{ status: 201, json: { id: "w1" } }] });
+    const res = await mgmtProvisionWorkspace({ name: "Writer", runtime: "hermes" });
+    expect(res.isError).toBeUndefined();
+    expect(t.requests()).toEqual(["POST /workspaces"]);
+    expect(t.posts()[0].body).toEqual({ name: "Writer", runtime: "hermes", model: "google/gemini-4-hydrogen" });
+  });
+
+  it("falls back to the tenant's offered-models default_model for the requested runtime", async () => {
+    const t = tenant({
+      [`GET ${OFFERED}?runtime=claude-code`]: [
+        { status: 200, json: { runtime: "claude-code", default_model: "google/gemini-4-hydrogen", models: [] } },
+      ],
+      "POST /workspaces": [{ status: 201, json: { id: "w2" } }],
+    });
+    const res = await mgmtProvisionWorkspace({ name: "Coder", runtime: "claude-code" });
+    expect(res.isError).toBeUndefined();
+    expect(t.requests()).toEqual([`GET ${OFFERED}?runtime=claude-code`, "POST /workspaces"]);
+    expect(t.posts()[0].body).toMatchObject({ runtime: "claude-code", model: "google/gemini-4-hydrogen" });
+  });
+
+  it("asks for the default runtime's default when no runtime is given", async () => {
+    const t = tenant({
+      [`GET ${OFFERED}`]: [{ status: 200, json: { runtime: "hermes", default_model: "google/gemini-4-hydrogen", models: [] } }],
+      "POST /workspaces": [{ status: 201, json: { id: "w3" } }],
+    });
+    await mgmtProvisionWorkspace({ name: "Bare" });
+    expect(t.requests()).toEqual([`GET ${OFFERED}`, "POST /workspaces"]);
+    expect(t.posts()[0].body).toEqual({ name: "Bare", model: "google/gemini-4-hydrogen" });
+  });
+
+  it("never uses the concierge's own model (MOLECULE_MODEL / MODEL)", async () => {
+    process.env.MOLECULE_MODEL = "minimax/MiniMax-M2.7";
+    process.env.MODEL = "minimax/MiniMax-M2.7";
+    const t = tenant({
+      [`GET ${OFFERED}?runtime=hermes`]: [{ status: 200, json: { runtime: "hermes", default_model: "google/gemini-4-hydrogen" } }],
+      "POST /workspaces": [{ status: 201, json: { id: "w4" } }],
+    });
+    await mgmtProvisionWorkspace({ name: "Member", runtime: "hermes" });
+    expect(t.posts()[0].body).toMatchObject({ model: "google/gemini-4-hydrogen" });
+  });
+
+  it("fails with INVALID_ARGUMENTS and creates nothing when the tenant names no default", async () => {
+    process.env.MOLECULE_MODEL = "minimax/MiniMax-M2.7"; // present, and still not used
+    const t = tenant({ [`GET ${OFFERED}?runtime=hermes`]: [{ status: 200, json: { runtime: "hermes", models: [] } }] });
+    const res = await mgmtProvisionWorkspace({ name: "Member", runtime: "hermes" });
+    expect(res.isError).toBe(true);
+    const out = parsed(res);
+    expect(out.error).toBe("INVALID_ARGUMENTS");
+    expect(out.detail).toContain("MOLECULE_LLM_DEFAULT_MODEL is not set");
+    expect(out.detail).toContain("default_model");
+    expect(out.detail).toContain("Nothing was created");
+    expect(t.posts()).toHaveLength(0);
+  });
+
+  it("fails with INVALID_ARGUMENTS naming the failure when the default cannot be read", async () => {
+    const t = tenant({ [`GET ${OFFERED}?runtime=hermes`]: [{ status: 503, json: { error: "provider registry unavailable" } }] });
+    const res = await mgmtProvisionWorkspace({ name: "Member", runtime: "hermes" });
+    expect(res.isError).toBe(true);
+    expect(parsed(res).error).toBe("INVALID_ARGUMENTS");
+    expect(parsed(res).detail).toContain("HTTP 503");
+    expect(t.posts()).toHaveLength(0);
+  });
+
+  it("sends no model for a runtime the model registry does not know (external)", async () => {
+    const t = tenant({
+      [`GET ${OFFERED}?runtime=external`]: [{ status: 404, json: { error: "unknown runtime", runtime: "external" } }],
+      "POST /workspaces": [{ status: 201, json: { id: "w5" } }],
+    });
+    const res = await mgmtProvisionWorkspace({ name: "Remote", runtime: "external" });
+    expect(res.isError).toBeUndefined();
+    expect(t.posts()[0].body).toEqual({ name: "Remote", runtime: "external" });
+  });
+
+  it("an explicit model wins and no default is looked up", async () => {
+    process.env.MOLECULE_LLM_DEFAULT_MODEL = "google/gemini-4-hydrogen";
+    const t = tenant({ "POST /workspaces": [{ status: 201, json: { id: "w6" } }] });
+    await mgmtProvisionWorkspace({ name: "Pinned", runtime: "claude-code", model: " google/gemini-3.1-flash-lite " });
+    expect(t.requests()).toEqual(["POST /workspaces"]);
+    expect(t.posts()[0].body).toMatchObject({ model: "google/gemini-3.1-flash-lite" });
+  });
+
+  it("a templated create sends no model so core applies the template's declared model", async () => {
+    process.env.MOLECULE_LLM_DEFAULT_MODEL = "google/gemini-4-hydrogen";
+    const t = tenant({ "POST /workspaces": [{ status: 201, json: { id: "w7" } }] });
+    const res = await mgmtProvisionWorkspace({ name: "SEO", template: "seo-agent" });
+    expect(res.isError).toBeUndefined();
+    expect(t.requests()).toEqual(["POST /workspaces"]);
+    expect(t.posts()[0].body).toEqual({ name: "SEO", template: "seo-agent" });
+  });
+
+  it("a template that declares no model gets the platform default (core refused with MODEL_REQUIRED)", async () => {
+    const t = tenant({
+      "POST /workspaces": [modelRequired("hermes"), { status: 201, json: { id: "w8" } }],
+      [`GET ${OFFERED}?runtime=hermes`]: [{ status: 200, json: { runtime: "hermes", default_model: "google/gemini-4-hydrogen" } }],
+    });
+    const res = await mgmtProvisionWorkspace({ name: "Plain", template: "bare-hermes" });
+    expect(res.isError).toBeUndefined();
+    // The default is looked up for the runtime core resolved from the template.
+    expect(t.requests()).toEqual(["POST /workspaces", `GET ${OFFERED}?runtime=hermes`, "POST /workspaces"]);
+    expect(t.posts()[0].body).toEqual({ name: "Plain", template: "bare-hermes" });
+    expect(t.posts()[1].body).toEqual({ name: "Plain", template: "bare-hermes", model: "google/gemini-4-hydrogen" });
+    expect(parsed(res)).toEqual({ id: "w8" });
+  });
+
+  it("a template that declares no model, and no default: INVALID_ARGUMENTS, nothing created", async () => {
+    const t = tenant({
+      "POST /workspaces": [modelRequired("hermes")],
+      [`GET ${OFFERED}?runtime=hermes`]: [{ status: 200, json: { runtime: "hermes" } }],
+    });
+    const res = await mgmtProvisionWorkspace({ name: "Plain", template: "bare-hermes" });
+    expect(res.isError).toBe(true);
+    expect(parsed(res).error).toBe("INVALID_ARGUMENTS");
+    expect(t.posts()).toHaveLength(1); // the refused attempt only
+  });
+
+  it("any other template refusal is returned as is, without a retry", async () => {
+    process.env.MOLECULE_LLM_DEFAULT_MODEL = "google/gemini-4-hydrogen";
+    const t = tenant({
+      "POST /workspaces": [{ status: 422, json: { error: "runtime could not be resolved", code: "RUNTIME_UNRESOLVED" } }],
+    });
+    const res = await mgmtProvisionWorkspace({ name: "Broken", template: "no-runtime" });
+    expect(res.isError).toBe(true);
+    expect(parsed(res).status).toBe(422);
+    expect(t.requests()).toEqual(["POST /workspaces"]);
   });
 });
