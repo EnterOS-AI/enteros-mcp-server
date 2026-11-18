@@ -41,8 +41,13 @@ import { PLATFORM_URL, authHeaders, isApiError, toMcpResult, unsafePlatformPathR
 import { isManagementMode } from "../mode.js";
 import { error as logError } from "../utils/logger.js";
 import { InvalidArgumentsError, validate } from "../utils/validation.js";
+import {
+  OFFERED_MODELS_PATH,
+  resolvePlatformDefaultModel,
+  unresolvedDefaultModelMessage,
+  type OfferedModelsAnswer,
+} from "./default_model.js";
 import { managementHeaders, managementUrl } from "./management/client.js";
-import { defaultProvisionWorkspaceModel } from "./management/index.js";
 
 export const LIGHT_TOOL_NAMES = [
   "light_status",
@@ -73,6 +78,8 @@ const IN_PROGRESS_ERRORS = new Set(["LIGHT_OPEN_INCOMPLETE", "LIGHT_PARK_INCOMPL
 const AWAKE = new Set(["online", "degraded"]);
 const TERMINAL = new Set(["failed", "paused", "removed"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** A Light agent is a hermes workspace. */
+const LIGHT_RUNTIME = "hermes";
 
 /** "Poll every few seconds" (light-api.md). */
 const POLL_INTERVAL_MS = 3_000;
@@ -447,7 +454,10 @@ const CreateLightAgentArgs = z.object({
     .trim()
     .min(1)
     .optional()
-    .describe("LLM model id. Omit unless the user named a model; omitted values use the platform default."),
+    .describe(
+      "LLM model id. Omit unless the user named a model: the agent then gets the platform default model " +
+        "(INVALID_ARGUMENTS, before anything is created, when the platform has none).",
+    ),
   secrets: z
     .record(z.string())
     .optional()
@@ -627,10 +637,18 @@ class CreateLightAgentFlow {
   }
 
   private async steps(input: CreateLightAgentInput): Promise<Record<string, unknown>> {
-    const model = input.model ?? defaultProvisionWorkspaceModel();
-
     this.enter("create");
-    const createBody: Record<string, unknown> = { name: input.name, runtime: "hermes", model };
+    let model = input.model;
+    if (model === undefined) {
+      // Nobody named a model: the platform's default, never one of ours.
+      const resolved = await resolvePlatformDefaultModel(LIGHT_RUNTIME, (runtime) => this.offeredModels(runtime));
+      if (resolved.kind === "unresolved") {
+        return this.fail({ error: unresolvedDefaultModelMessage(resolved.detail), code: "INVALID_ARGUMENTS" });
+      }
+      if (resolved.kind === "model") model = resolved.model;
+    }
+    const createBody: Record<string, unknown> = { name: input.name, runtime: LIGHT_RUNTIME };
+    if (model !== undefined) createBody.model = model;
     if (input.secrets !== undefined) createBody.secrets = input.secrets;
     // Not retried: a create is not idempotent. Its answer also carries the new
     // workspace's own token (auth_token), which is never kept or returned.
@@ -855,13 +873,33 @@ class CreateLightAgentFlow {
     }
   }
 
-  private request(method: "GET" | "POST", path: string, body?: unknown): Promise<Answer> {
+  private request(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+    query?: LightRequestOptions["query"],
+  ): Promise<Answer> {
     return lightRequest(method, path, {
       body,
+      query,
       signal: this.signal,
       timeoutMs: Math.max(1_000, Math.min(REQUEST_TIMEOUT_MS, this.remaining())),
       now: () => this.clock.now(),
     });
+  }
+
+  /** GET /admin/llm/offered-models?runtime=, as resolvePlatformDefaultModel reads it. */
+  private async offeredModels(runtime: string | undefined): Promise<OfferedModelsAnswer> {
+    const answer = await this.request("GET", OFFERED_MODELS_PATH, undefined, { runtime });
+    if (answer.ok) return { ok: true, body: answer.body };
+    if (answer.failure.code === CANCELLED_FAILURE.code) throw CANCELLED;
+    const { error, detail } = answer.failure;
+    return {
+      ok: false,
+      status: answer.failure.http_status,
+      body: answer.failure,
+      detail: typeof detail === "string" && detail !== "" ? `${error}: ${detail}` : error,
+    };
   }
 
   /** The failure as light_create_agent returns it: core's code and message, the step, and the workspace once it exists. */

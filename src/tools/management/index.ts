@@ -17,8 +17,14 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { toMcpResult, isApiError } from "../../api.js";
+import { toMcpResult, isApiError, type ApiError } from "../../api.js";
 import { validate } from "../../utils/validation.js";
+import {
+  offeredModelsPath,
+  resolvePlatformDefaultModel,
+  unresolvedDefaultModelMessage,
+  type OfferedModelsAnswer,
+} from "../default_model.js";
 import { mgmtCall, mgmtGet, defaultOrgId, selfWorkspaceId } from "./client.js";
 import { registerCpAdminTools } from "./cp_admin.js";
 
@@ -35,6 +41,11 @@ const RenameWorkspaceSchema = z.object({
   name: z.string().trim().min(1).describe("New workspace display name"),
 });
 
+/** provision_workspace's `model` description (the validation schema and the registered tool share it). */
+const PROVISION_MODEL_DESCRIPTION =
+  "LLM model id. Omit unless the user named a model: the workspace then gets its template's declared model, " +
+  "else the platform default model (INVALID_ARGUMENTS, before anything is created, when the platform has none).";
+
 const ProvisionWorkspaceSchema = z.object({
   name: z.string().describe("Workspace name"),
   role: z.string().optional().describe("Role description"),
@@ -45,10 +56,7 @@ const ProvisionWorkspaceSchema = z.object({
     .describe("Runtime: claude-code, langgraph, deepagents, autogen, crewai, hermes, codex, google-adk, external"),
   tier: z.number().int().min(1).max(4).optional().describe("Tier (1=basic, 2=browser, 3=desktop, 4=VM)"),
   parent_id: z.string().optional().describe("Parent workspace UUID for nesting"),
-  model: z
-    .string()
-    .optional()
-    .describe("LLM model id. Omit unless the user named a model; omitted values use the platform default."),
+  model: z.string().optional().describe(PROVISION_MODEL_DESCRIPTION),
 });
 
 const DeprovisionWorkspaceSchema = z.object({
@@ -324,16 +332,34 @@ const GetConversationHistorySchema = z.object({
 // Handlers
 // ---------------------------------------------------------------------------
 
-const FALLBACK_PLATFORM_WORKSPACE_MODEL = "minimax/MiniMax-M2.7";
+/** GET /admin/llm/offered-models through the management client (Org API Key). */
+async function fetchOfferedModels(runtime: string | undefined): Promise<OfferedModelsAnswer> {
+  const res = await mgmtGet(offeredModelsPath(runtime));
+  if (isApiError(res)) {
+    // mgmtCall keeps a refusal's body as text in `detail`.
+    return { ok: false, status: res.status, body: res.detail, detail: res.detail || res.error };
+  }
+  return { ok: true, body: res };
+}
 
-/** The model a new workspace gets when the caller names none (also light_create_agent's). */
-export function defaultProvisionWorkspaceModel(): string {
-  return (
-    process.env.MOLECULE_LLM_DEFAULT_MODEL?.trim() ||
-    process.env.MOLECULE_MODEL?.trim() ||
-    process.env.MODEL?.trim() ||
-    FALLBACK_PLATFORM_WORKSPACE_MODEL
-  );
+/**
+ * Core's create refusal for a workspace with no model (422 MODEL_REQUIRED, sent
+ * before anything is stored), or undefined for any other answer. Carries the
+ * runtime core resolved, which for a templated create is the template's.
+ */
+function modelRequiredRefusal(res: unknown): { runtime?: string } | undefined {
+  if (!isApiError(res) || res.status !== 422 || typeof res.detail !== "string") return undefined;
+  let body: unknown;
+  try {
+    body = JSON.parse(res.detail);
+  } catch {
+    return undefined;
+  }
+  if (typeof body !== "object" || body === null || (body as { code?: unknown }).code !== "MODEL_REQUIRED") {
+    return undefined;
+  }
+  const runtime = (body as { runtime?: unknown }).runtime;
+  return { runtime: typeof runtime === "string" && runtime.trim() !== "" ? runtime : undefined };
 }
 
 // Workspaces lifecycle -----------------------------------------------------
@@ -354,14 +380,20 @@ export async function handleRenameWorkspace(args: unknown) {
   );
 }
 
+/**
+ * provision_workspace. The model, in order: the caller's; for a templated
+ * create, the template's declared model (core applies it to a create that names
+ * a template and no model); the platform default (../default_model.ts). With no
+ * model and no default the call fails with INVALID_ARGUMENTS and creates
+ * nothing — never a vendor model the platform did not choose.
+ */
 export async function handleProvisionWorkspace(args: unknown) {
   const p = validate(args, ProvisionWorkspaceSchema);
-  const model = p.model?.trim() || defaultProvisionWorkspaceModel();
   // Tenant POST /workspaces (AdminAuth — the Org API Key satisfies it).
   // This is the org-key-reachable provision lever; the CP /cp/workspaces/
   // provision path needs the provision-secret tier (see cp_admin.ts note).
-  return toMcpResult(
-    await mgmtCall("POST", "/workspaces", {
+  const create = (model: string | undefined): Promise<unknown | ApiError> =>
+    mgmtCall("POST", "/workspaces", {
       name: p.name,
       role: p.role,
       template: p.template,
@@ -369,8 +401,25 @@ export async function handleProvisionWorkspace(args: unknown) {
       tier: p.tier,
       parent_id: p.parent_id,
       model,
-    }),
-  );
+    });
+
+  const explicit = p.model?.trim();
+  if (explicit) return toMcpResult(await create(explicit));
+
+  let runtime = p.runtime;
+  if (p.template?.trim()) {
+    const res = await create(undefined);
+    const refusal = modelRequiredRefusal(res);
+    if (!refusal) return toMcpResult(res);
+    // The template declares no model; core named the runtime it resolved.
+    runtime = refusal.runtime ?? runtime;
+  }
+
+  const resolved = await resolvePlatformDefaultModel(runtime, fetchOfferedModels);
+  if (resolved.kind === "unresolved") {
+    return toMcpResult({ error: "INVALID_ARGUMENTS", detail: unresolvedDefaultModelMessage(resolved.detail) });
+  }
+  return toMcpResult(await create(resolved.kind === "model" ? resolved.model : undefined));
 }
 
 export async function handleDeprovisionWorkspace(args: unknown) {
@@ -685,7 +734,9 @@ export function registerManagementTools(srv: McpServer) {
   );
   srv.tool(
     "provision_workspace",
-    "Management: provision a new workspace in the org (tenant POST /workspaces, AdminAuth).",
+    "Management: provision a new workspace in the org (tenant POST /workspaces, AdminAuth). Leave model out " +
+      "unless the user named one: a templated workspace then gets its template's model, any other the " +
+      "platform default model.",
     {
       name: z.string().describe("Workspace name"),
       role: z.string().optional().describe("Role description"),
@@ -693,7 +744,7 @@ export function registerManagementTools(srv: McpServer) {
       runtime: z.string().optional().describe("Runtime (claude-code, langgraph, codex, …)"),
       tier: z.number().int().min(1).max(4).optional().describe("Tier 1-4"),
       parent_id: z.string().optional().describe("Parent workspace UUID"),
-      model: z.string().optional().describe("LLM model id. Omit unless the user named a model; omitted values use the platform default."),
+      model: z.string().optional().describe(PROVISION_MODEL_DESCRIPTION),
     },
     handleProvisionWorkspace,
   );

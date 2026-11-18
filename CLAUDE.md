@@ -142,6 +142,7 @@ connects through the configured Molecule platform API.
 |----------|----------|-------------|
 | `MOLECULE_API_URL` | Yes | Per-tenant workspace API base (`https://<slug>.moleculesai.app` in SaaS) |
 | `MOLECULE_API_KEY` | Yes in SaaS | Tenant API bearer; optional only for a no-auth localhost stack |
+| `MOLECULE_LLM_DEFAULT_MODEL` | No | Platform default model for `provision_workspace` / `light_create_agent` with the model omitted; unset, the tenant's `GET /admin/llm/offered-models` `default_model`. Never a hardcoded model (`src/tools/default_model.ts`) |
 
 Set these values in the MCP host configuration or the launching shell. The
 entrypoint does not load a repository `.env` file.
